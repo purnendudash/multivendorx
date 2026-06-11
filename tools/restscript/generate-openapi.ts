@@ -1,8 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
+// Fixes ES Module ReferenceError by using proper default import
+import swaggerAutogenInit from 'swagger-autogen';
 
-// Parse swagger-autogen using standard CommonJS require mapping for compatibility
-const swaggerAutogen = require('swagger-autogen')({ openapi: '3.0.0' });
+// Initialize the autogen tool for OpenAPI 3.0.0
+const swaggerAutogen = swaggerAutogenInit({ openapi: '3.0.0' });
 
 async function generateSpec() {
   // Capture the plugin name argument passed from the GitHub Workflow step
