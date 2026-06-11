@@ -1,0 +1,436 @@
+@use './config.scss' as *;
+
+.store-card {
+
+    h3,
+    h4,
+    h5,
+    p {
+        margin: 0;
+    }
+}
+
+// store quick info start (sidebar)
+.store-header {
+    display: flex;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 0.063rem solid var(--theme-border-color);
+    width: 100%;
+    gap: 0.75rem;
+    align-items: start;
+
+    .store-avatar {
+        width: 5rem;
+        height: 5rem;
+        border-radius: 50%;
+        overflow: hidden;
+        margin-right: 0.938rem;
+        border: 0.063rem solid var(--theme-border-color);
+
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+    }
+}
+
+.store-info {
+    flex: 1;
+}
+
+.store-stats {
+    display: flex;
+}
+
+.stat-item {
+    text-align: center;
+    flex: 1;
+}
+
+.stat-number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 0.313rem;
+}
+
+.stat-label {
+    font-size: 0.813rem;
+    color: #7f8c8d;
+    text-transform: uppercase;
+    letter-spacing: 0.0.313rem;
+}
+
+// store quick info end
+
+// logo and place holder start
+.placeholder {
+    left: 0;
+    top: 0;
+    color: var(--theme-primary-color);
+    display: flex;
+    justify-content: center;
+    background: var(--theme-background);
+    align-items: center;
+    font-size: 3rem;
+    width: 5rem;
+    height: 5rem;
+    box-shadow: 0 0.125rem 0.5rem 0 rgb(66 62 78 / 12%);
+}
+
+// logo and place holder end
+
+
+//  store page policy tabs start
+.multivendorx-policies-accordion {
+    .accordion-item {
+        border: 0.063rem solid var(--theme-border-color);
+        border-radius: 0.313rem;
+        margin-bottom: 0.625rem;
+        overflow: hidden;
+
+        .accordion-header {
+            padding: 0.938rem;
+            background: #f7f7f7;
+            cursor: pointer;
+            font-weight: bold;
+            position: relative;
+
+            &::after {
+                content: '+';
+                position: absolute;
+                right: 1.25rem;
+                font-size: 1.125rem;
+                transition: transform 0.2s;
+            }
+
+            &.active::after {
+                content: '-';
+            }
+        }
+
+        .accordion-body {
+            display: none;
+            padding: 0.938rem;
+            background: #fff;
+        }
+    }
+}
+
+//  store page policy tabs end
+
+// store list start
+// #marketplace-stores {
+.view-tabs-wrapper {
+    display: flex;
+    justify-content: end;
+    margin-bottom: 2rem;
+    gap: 0.5rem;
+
+    .view-tabs {
+        display: flex;
+        width: fit-content;
+        gap: 1rem;
+        list-style-type: none;
+        margin: 0;
+        padding: 0.5rem;
+        border-radius: 0.313rem;
+        background: var(--theme-background);
+
+        li {
+            cursor: pointer;
+            padding: 0 0.45rem;
+
+            a {
+                color: var(--theme-primary-color);
+            }
+
+            &.active {
+                background: #fff;
+                border-radius: 0.313rem;
+
+                a {
+                    color: var(--theme-primary-color);
+                }
+            }
+        }
+    }
+}
+
+// store-filter-wrapper
+.store-filter-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: end;
+
+    input,
+    select {
+        width: fit-content;
+    }
+}
+
+.store-list-wrapper {
+    transition: all 0.3s ease-in-out;
+    display: flex;
+
+    // flex-wrap: wrap;
+    justify-content: space-between;
+
+    .store-list {
+        width: 100%;
+        margin-bottom: 2rem;
+
+        .store {
+            border: 0.063rem solid var(--theme-border-color);
+            border-radius: 0.313rem;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-sizing: border-box;
+            margin-bottom: 1rem;
+
+            .store-image {
+                width: 2.5rem;
+                height: 2.5rem;
+                background: var(--theme-background);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                font-size: 1.813rem;
+                border-radius: 0.313rem;
+                color: var(--theme-primary-color);
+            }
+
+            .avatar {
+                height: 2.5rem;
+                width: 2.5rem;
+                justify-content: center;
+                display: flex;
+                align-items: center;
+                font-size: 1.5rem;
+                background: var(--theme-background);
+                border-radius: 0.313rem;
+                color: var(--theme-primary-color);
+            }
+
+            .store-details {
+                flex-direction: column;
+                align-items: start;
+
+                h4 {
+                    margin: 0;
+                }
+            }
+
+            // product section
+            .store-products {
+                .products {
+                    display: flex;
+                    gap: 1rem;
+
+                    // &::before {
+                    //     display: none;
+                    // }
+
+                    .type-product {
+                        margin: 0;
+                    }
+                }
+            }
+
+            .store-footer {
+                display: flex;
+                justify-content: end;
+                align-items: center;
+                border-top: 0.063rem solid var(--theme-border-color);
+                padding-top: 1rem;
+            }
+        }
+    }
+
+    .form-group {
+        width: 100%;
+    }
+
+    &.is-split {
+        display: flex;
+        gap: 2rem;
+
+        .store-list,
+        .store-map {
+            width: 50%;
+        }
+    }
+
+    &.is-map {
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 2rem;
+
+        .store-list {
+            margin-top: 2rem;
+        }
+    }
+
+    &.is-list {
+        flex-wrap: wrap;
+
+        .store-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+
+            .store {
+                width: calc(100% / 2 - 1rem);
+                margin: 0;
+            }
+        }
+
+        .map-wrapper,
+        .store-map {
+            width: 100%;
+        }
+    }
+}
+
+// .stores-list-edit-panel .store-products{
+//     display: none;
+// }
+// map end
+
+// store list end
+
+
+//  store details start
+.store-details {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+//  store details end
+
+
+// store coupon start
+.store-coupon-list {
+    &.shortcode {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+
+        .coupon-card{
+            width: calc(25% - 0.75rem);
+            margin: 0;
+        }
+    }
+
+    .coupon-card {
+        padding: 1rem;
+        border: 0.063rem dashed var(--theme-border-color);
+        border-radius: 0.313rem;
+        margin-bottom: 0.813rem;
+        width: fit-content;
+
+        p,
+        h4 {
+            margin: 0;
+            display: flex;
+            gap: 0.313rem;
+
+            span {
+                cursor: pointer;
+            }
+        }
+    }
+}
+
+// store coupon end
+
+
+//  for markerplace product edit panel only
+.marketplace-products-edit {
+    .product_list_widget {
+        list-style: none outside;
+        padding: 0;
+        margin: 0;
+
+        li {
+            padding: 0.625rem 0;
+            margin: 0;
+            list-style: none;
+            overflow: hidden;
+            border-bottom: 0.063rem solid #e5e5e5;
+            transition: background-color 0.2s ease;
+
+            &:last-child {
+                border-bottom: 0;
+            }
+
+            &:hover {
+                background-color: #fafafa;
+            }
+        }
+
+        a {
+            display: block;
+            font-weight: 700;
+            text-decoration: none;
+            color: #0066c0;
+
+            &:hover {
+                color: #c45500;
+            }
+        }
+
+        img {
+            float: right;
+            margin-left: 0.625rem;
+            width: 3.125rem;
+            height: auto;
+            box-shadow: 0 0.063rem 0.125rem 0 rgb(0 0 0 / 10%);
+        }
+
+        .product-title {
+            display: block;
+            line-height: 1.3;
+            margin-bottom: 0.313rem;
+            font-size: 0.813rem;
+        }
+
+
+        // Price Styles
+        .amount {
+            font-size: 0.813rem;
+            font-weight: 600;
+            color: #515151;
+        }
+
+        del {
+            .amount {
+                font-weight: 400;
+                color: #777;
+                font-size: 0.75rem;
+                text-decoration: line-through;
+            }
+        }
+
+        ins {
+            text-decoration: none;
+
+            .amount {
+                font-weight: 700;
+                color: #e74c3c;
+            }
+        }
+    }
+}
+
+.multivendorx-store-details {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}

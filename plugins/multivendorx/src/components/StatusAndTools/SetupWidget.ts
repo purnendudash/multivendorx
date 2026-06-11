@@ -1,0 +1,28 @@
+/* global appLocalizer */
+import { __ } from '@wordpress/i18n';
+
+export default {
+	id: 'setup-widget',
+	priority: 4,
+	headerTitle: __('Setup Widget', 'multivendorx'),
+	headerDescription: __(
+		'Data from your previous marketplace can be seamlessly transferred using this migration tool.',
+		'multivendorx'
+	),
+	headerIcon: 'setup',
+	submitUrl: 'settings',
+	modal: [
+		{
+			key: 'setup_wizard',
+			type: 'button',
+			name: __('Setup Wizard', 'multivendorx'),
+			label: __('Run setup wizard', 'multivendorx'),
+			position: 'left',
+			desc: __(
+				'Launch the step-by-step wizard to configure your marketplace quickly and effortlessly.',
+				'multivendorx'
+			),
+			redirect_url: `${appLocalizer.admin_url}index.php?page=multivendorx-setup`,
+		},
+	],
+};

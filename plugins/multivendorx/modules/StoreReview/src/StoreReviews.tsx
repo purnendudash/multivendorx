@@ -1,0 +1,525 @@
+/* global appLocalizer */
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { __ } from '@wordpress/i18n';
+import {
+	getApiLink,
+	FormGroupWrapper,
+	FormGroup,
+	TableCard,
+	ButtonInputUI,
+	ChoiceToggleUI,
+	PopupUI,
+	TextAreaUI,
+	TableRow,
+	QueryProps,
+	CategoryCount,
+} from 'zyra';
+import Popup from '../../../src/components/Popup/Popup';
+import { formatLocalDate } from '../../../src/services/commonFunction';
+
+type Review = {
+	id: number;
+	store_id: number;
+	customer_id: number;
+	customer_name: string;
+	order_id: number;
+	overall_rating: number;
+	review_title: string;
+	review_content: string;
+	status: string;
+	reported: number;
+	reply: string;
+	reply_date: string;
+	date_created: string;
+	date_modified: string;
+	review_images: string[];
+	time_ago: string;
+	store_name?: string;
+};
+type StoreOption = {
+	label: string;
+	value: number;
+};
+const StoreReviews: React.FC = () => {
+	const [rows, setRows] = useState<TableRow[][]>([]);
+	const [isLoading, setIsLoading] = useState(false);
+	const [totalRows, setTotalRows] = useState<number>(0);
+	const [rowIds, setRowIds] = useState<number[]>([]);
+	const [store, setStore] = useState<StoreOption[] | null>(null);
+	const [categoryCounts, setCategoryCounts] = useState<
+		CategoryCount[] | null
+	>(null);
+
+	const [selectedReview, setSelectedReview] = useState<Review | null>(null);
+	const [replyText, setReplyText] = useState<string>('');
+
+	const [selectedRv, setSelectedRv] = useState<{
+		id: number;
+	} | null>(null);
+	const [confirmOpen, setConfirmOpen] = useState(false);
+
+	const handleConfirmDelete = () => {
+		if (!selectedRv) {
+			return;
+		}
+
+		axios({
+			method: 'DELETE',
+			url: getApiLink(appLocalizer, `reviews/${selectedRv.id}`),
+			headers: { 'X-WP-Nonce': appLocalizer.nonce },
+		})
+			.then(() => {
+				// refresh table after deletion
+				doRefreshTableData({});
+			})
+			.finally(() => {
+				setConfirmOpen(false);
+				setSelectedRv(null);
+			});
+	};
+
+	useEffect(() => {
+		axios
+			.get(getApiLink(appLocalizer, 'stores'), {
+				headers: { 'X-WP-Nonce': appLocalizer.nonce },
+				params: { options: true },
+			})
+			.then((response) => {
+				const options = (response.data || []).map((store) => ({
+					label: store.store_name,
+					value: store.id,
+				}));
+
+				setStore(options);
+				setIsLoading(false);
+			})
+			.catch(() => {
+				setStore([]);
+				setIsLoading(false);
+			});
+	}, []);
+
+	// 🔹 Handle reply saving
+	const handleSaveReply = () => {
+		if (!selectedReview) {
+			return;
+		}
+
+		axios({
+			method: 'POST',
+			url: getApiLink(appLocalizer, `reviews/${selectedReview.id}`),
+			headers: { 'X-WP-Nonce': appLocalizer.nonce },
+			data: {
+				reply: replyText,
+				status: selectedReview.status,
+			},
+		})
+			.then(() => {
+				// Refresh table data after saving
+				doRefreshTableData({});
+				setSelectedReview(null);
+				setReplyText('');
+			})
+			.catch(() => {
+				alert(__('Failed to save reply', 'multivendorx'));
+			});
+	};
+
+	const fetchReviewById = (id: number) => {
+		axios
+			.get(getApiLink(appLocalizer, `reviews/${id}`), {
+				headers: { 'X-WP-Nonce': appLocalizer.nonce },
+			})
+			.then((response) => {
+				const item = response.data;
+				if (item) {
+					setSelectedReview(item);
+					setReplyText(item.reply || '');
+				}
+			})
+			.catch(() => {
+				alert(__('Failed to fetch review data', 'multivendorx'));
+			});
+	};
+
+	const headers = {
+		customer_name: {
+			label: __('Customer', 'multivendorx'),
+		},
+		store_name: {
+			label: __('Store', 'multivendorx'),
+		},
+		details: {
+			label: __('Details', 'multivendorx'),
+			render: (row) => (
+				<div className="review-details">
+					<div className="review">
+						{[...Array(Math.round(row.overall_rating || 0))].map(
+							(_, i) => (
+								<i
+									key={`filled-${i}`}
+									className="star-icon adminfont-star"
+								/>
+							)
+						)}
+
+						{[
+							...Array(5 - Math.round(row.overall_rating || 0)),
+						].map((_, i) => (
+							<i
+								key={`empty-${i}`}
+								className="star-icon adminfont-star-o"
+							/>
+						))}
+					</div>
+					<div className="title">{row.review_title}</div>
+					<div className="desc">{row.review_content}</div>
+				</div>
+			),
+		},
+		status: {
+			label: __('Status', 'multivendorx'),
+			type: 'status' , statusClass: (row) => `${row.status}`,
+		},
+		date_created: {
+			label: __('Date', 'multivendorx'),
+			sortable: true,
+			type: 'date',
+		},
+		action: {
+			label: __('Action', 'multivendorx'),
+			type: 'action',
+			actions: [
+				{
+					label: __('Reply / Edit', 'multivendorx'),
+					icon: 'edit',
+					onClick: (row) => fetchReviewById(row.id),
+				},
+				{
+					label: __('Delete', 'multivendorx'),
+					icon: 'delete',
+					onClick: (row) => {
+						setSelectedRv({ id: row.id });
+						setConfirmOpen(true);
+					},
+				},
+			],
+		},
+	};
+
+	const filters = [
+		{
+			key: 'storeId',
+			label: __('Stores', 'multivendorx'),
+			type: 'select',
+			options: store,
+		},
+		{
+			key: 'rating',
+			label: __('Status', 'multivendorx'),
+			type: 'select',
+			options: [
+				{ label: __('All', 'multivendorx'), value: '' },
+				{ label: __('5 Stars & Up', 'multivendorx'), value: '5' },
+				{ label: __('4 Stars & Up', 'multivendorx'), value: '4' },
+				{ label: __('3 Stars & Up', 'multivendorx'), value: '3' },
+				{ label: __('2 Stars & Up', 'multivendorx'), value: '2' },
+				{ label: __('1 Stars & Up', 'multivendorx'), value: '1' },
+			],
+		},
+		{
+			key: 'created_at',
+			label: __('Created Date', 'multivendorx'),
+			type: 'date',
+		},
+	];
+
+	const doRefreshTableData = (query: QueryProps) => {
+		setIsLoading(true);
+		axios
+			.get(getApiLink(appLocalizer, 'reviews'), {
+				headers: { 'X-WP-Nonce': appLocalizer.nonce },
+				params: {
+					page: query.paged || 1,
+					row: query.per_page || 10,
+					status:
+						query.categoryFilter === 'all'
+							? ''
+							: query.categoryFilter,
+					search_value: query.searchValue || '',
+					store_id: query?.filter?.storeId,
+					start_date: query.filter?.created_at?.startDate
+						? formatLocalDate(query.filter.created_at.startDate)
+						: '',
+					end_date: query.filter?.created_at?.endDate
+						? formatLocalDate(query.filter.created_at.endDate)
+						: '',
+					overall_rating: query?.filter?.rating,
+					order_by: query.orderby,
+					order: query.order,
+				},
+			})
+			.then((response) => {
+				const items = response.data || [];
+				const ids = items
+					.filter((item) => item?.id != null)
+					.map((item) => item.id);
+
+				setRowIds(ids);
+				setRows(items);
+				window.multivendorxCustomerStore?.setCount(
+					'store-review',
+					Number(response.headers['x-wp-status-pending']) || 0
+				);
+				setCategoryCounts([
+					{
+						value: 'all',
+						label: 'All',
+						count: Number(response.headers['x-wp-total']) || 0,
+					},
+					{
+						value: 'approved',
+						label: 'Approved',
+						count:
+							Number(response.headers['x-wp-status-approved']) ||
+							0,
+					},
+					{
+						value: 'pending',
+						label: 'Pending',
+						count:
+							Number(response.headers['x-wp-status-pending']) ||
+							0,
+					},
+					{
+						value: 'rejected',
+						label: 'Rejected',
+						count:
+							Number(response.headers['x-wp-status-rejected']) ||
+							0,
+					},
+				]);
+
+				setTotalRows(Number(response.headers['x-wp-total']) || 0);
+				setIsLoading(false);
+			})
+			.catch(() => {
+				setRows([]);
+				setTotalRows(0);
+				setIsLoading(false);
+			});
+	};
+
+	return (
+		<>
+			<PopupUI
+				position="lightbox"
+				open={confirmOpen}
+				onClose={() => setConfirmOpen(false)}
+				width={31.25}
+			>
+				<Popup
+					confirmMode
+					title={__('Delete Review', 'multivendorx')}
+					confirmMessage={
+						selectedRv
+							? __(
+									'Are you sure you want to delete review?',
+									'multivendorx'
+								)
+							: ''
+					}
+					confirmYesText={__('Delete', 'multivendorx')}
+					confirmNoText={__('Cancel', 'multivendorx')}
+					onConfirm={handleConfirmDelete}
+					onCancel={() => {
+						setConfirmOpen(false);
+						setSelectedRv(null);
+					}}
+				/>
+			</PopupUI>
+			<TableCard
+				headers={headers}
+				rows={rows}
+				totalRows={totalRows}
+				isLoading={isLoading}
+				onQueryUpdate={doRefreshTableData}
+				ids={rowIds}
+				categoryCounts={categoryCounts}
+				search={{}}
+				filters={filters}
+				format={appLocalizer.date_format}
+			/>
+
+			{selectedReview && (
+				<PopupUI
+					open={!!selectedReview}
+					onClose={() => setSelectedReview(null)}
+					width={31.25}
+					height="80%"
+					header={{
+						icon: 'store-review',
+						title: `${__('Reply to Review', 'multivendorx')} – ${selectedReview?.store_name}`,
+						description: __(
+							'Review customer feedback submitted for this store and approve, reject, or keep it under moderation.',
+							'multivendorx'
+						),
+					}}
+					footer={
+						<ButtonInputUI
+							buttons={[
+								{
+									icon: 'close',
+									text: __('Cancel', 'multivendorx'),
+									color: 'red',
+									onClick: () => setSelectedReview(null),
+								},
+								{
+									icon: 'save',
+									text: __('Save', 'multivendorx'),
+									onClick: handleSaveReply,
+								},
+							]}
+						/>
+					}
+				>
+					<>
+						<div className="review-popup-wrapper">
+							<div className="customer-wrapper">
+								<div className="avatar">
+									<span className="purple-bg">
+										{selectedReview.customer_name
+											.charAt(0)
+											.toUpperCase()}
+									</span>
+								</div>
+								{selectedReview && (
+									<div className="name-wrapper">
+										<div
+											className="name"
+											dangerouslySetInnerHTML={{
+												__html: selectedReview.review_title,
+											}}
+										></div>
+
+										<div className="rating-wrapper">
+											{[
+												...Array(
+													Math.round(
+														selectedReview.overall_rating ||
+															0
+													)
+												),
+											].map((_, i) => (
+												<i
+													key={`filled-${i}`}
+													className="star-icon adminfont-star"
+												></i>
+											))}
+
+											{[
+												...Array(
+													5 -
+														Math.round(
+															selectedReview.overall_rating ||
+																0
+														)
+												),
+											].map((_, i) => (
+												<i
+													key={`empty-${i}`}
+													className="star-icon adminfont-star-o"
+												></i>
+											))}
+
+											<div className="date">
+												{new Date(
+													selectedReview.date_created
+												).toLocaleDateString('en-GB', {
+													day: '2-digit',
+													month: 'short',
+													year: 'numeric',
+												})}
+											</div>
+										</div>
+									</div>
+								)}
+							</div>
+
+							<div className="review">
+								{selectedReview.review_content}
+							</div>
+						</div>
+
+						<FormGroupWrapper>
+							<FormGroup
+								label={__(
+									'Respond to customer',
+									'multivendorx'
+								)}
+								htmlFor="reply"
+							>
+								<TextAreaUI
+									name="reply"
+									value={replyText}
+									onChange={(value: string) =>
+										setReplyText(value)
+									}
+									usePlainText={true}
+								/>
+							</FormGroup>
+
+							<FormGroup
+								label={__(
+									'Control if this review appears publicly, stays under moderation, or is excluded from the store page.',
+									'multivendorx'
+								)}
+								htmlFor="control"
+							>
+								<ChoiceToggleUI
+									options={[
+										{
+											key: 'pending',
+											value: 'Pending',
+											label: __(
+												'Pending',
+												'multivendorx'
+											),
+										},
+										{
+											key: 'approved',
+											value: 'Approved',
+											label: __(
+												'Approved',
+												'multivendorx'
+											),
+										},
+										{
+											key: 'rejected',
+											value: 'Rejected',
+											label: __(
+												'Rejected',
+												'multivendorx'
+											),
+										},
+									]}
+									value={selectedReview.status}
+									onChange={(val) => {
+										setSelectedReview((prev) =>
+											prev
+												? { ...prev, status: val }
+												: prev
+										);
+									}}
+								/>
+							</FormGroup>
+						</FormGroupWrapper>
+					</>
+				</PopupUI>
+			)}
+		</>
+	);
+};
+
+export default StoreReviews;

@@ -1,0 +1,87 @@
+// common style start
+.status-badge {
+    font-size: 0.813rem;
+    padding: 0.125rem .5rem;
+    line-height: 1;
+    border-radius: 0.313rem;
+    border: 0.063rem solid;
+    font-weight: 500;
+
+    &.red-badge{
+        color: #f7a79a;
+        background-color: #fff3f1;
+    }
+    &.green-badge{
+        color: #6bbf8f;
+        background-color: #e8fbea;
+    }
+    &.yellow-badge{
+        color: #d4b86a;
+        background-color: #fffce8;
+    }
+    &.blue-badge{
+        color: #6f78c7;
+        background-color: #e8efff;
+    }
+}
+// common style end
+
+
+.catalogx-table .product-cell {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+
+
+    img {
+        width: 3rem;
+    }
+
+    .dashicons {
+        color: rgba(255, 0, 0, 0.76);
+        cursor: pointer;
+    }
+}
+
+
+
+// My Quote page start
+
+.update-cart-btn {
+    margin-bottom: 1rem;
+}
+
+// My Quote page end
+
+// shop page start
+.enquiry-btn,
+.quote-btn {
+    display: inline-block;
+}
+
+// shop page end
+
+// quote thank you page start
+.quote-thank-you-section {
+    text-align: center;
+    padding: 2rem;
+    text-align: center;
+    border: 0.063rem solid #00000030;
+    border-radius: 0.313rem;
+
+    .dashicons {
+        font-size: 3.5rem;
+        color: green;
+        height: 3.5rem;
+        width: 3.5rem;
+    }
+
+    h2 {
+        margin: 0;
+    }
+}
+
+.added_to_cart,
+.catalogx-add-request-quote-button {
+    margin-bottom: 0.238rem;
+}

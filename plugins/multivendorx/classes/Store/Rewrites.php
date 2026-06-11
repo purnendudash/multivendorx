@@ -1,0 +1,315 @@
+<?php
+/**
+ * MultiVendorX Rewrites class file.
+ *
+ * @package MultiVendorX
+ */
+
+namespace MultiVendorX\Store;
+
+use MultiVendorX\Utill;
+use MultiVendorX\FrontendScripts;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * MultiVendorX Rewrites class.
+ *
+ * @class       Rewrites class
+ * @version     5.0.0
+ * @author      MultiVendorX
+ */
+class Rewrites {
+
+    /**
+     * Custom store URL
+     *
+     * @var string
+     */
+    public $custom_store_url = '';
+
+    /**
+     * Hook into the functions
+     */
+    public function __construct() {
+        $this->custom_store_url = MultiVendorX()->setting->get_setting( 'store_url', 'store' );
+
+        add_action( 'init', array( $this, 'register_rule' ) );
+        add_filter( 'query_vars', array( $this, 'register_query_var' ) );
+        add_action( 'wp', array( $this, 'flash_rewrite_rules' ) );
+
+        // Make endpoint behave like a page.
+        add_action( 'pre_get_posts', array( $this, 'make_endpoint_virtual_page' ) );
+        add_filter( 'pre_get_document_title', array( $this, 'set_store_page_title' ), 10 );
+
+        // Load correct template.
+        add_filter( 'template_include', array( $this, 'load_store_template' ) );
+        // For PHP template query of products.
+        // add_action( 'pre_get_posts', array( $this, 'store_query_filter' ) );
+        add_filter( 'body_class', array( $this, 'add_sidebar_class_for_block_template' ), 10 );
+        add_action( 'wp_enqueue_scripts', array( $this, 'register_store_state' ) );
+    }
+
+    /**
+     * Get current queried store.
+     *
+     * @return Store|null
+     */
+    public function get_current_store() {
+        static $store = null;
+
+        if ( null !== $store ) {
+            return $store;
+        }
+
+        $store_slug = get_query_var( $this->custom_store_url );
+        if ( empty( $store_slug ) ) {
+            return null;
+        }
+
+        $store = Store::get_store( $store_slug, 'slug' );
+        return $store;
+    }
+
+    /**
+     * Filter store query
+     *
+     * @param object $query The main query object.
+     */
+    public function store_query_filter( $query ) {
+        if ( is_admin() || ! $query->is_main_query() ) {
+            return;
+        }
+
+        if ( wp_is_block_theme() ) {
+            return;
+        }
+
+        $store_slug = get_query_var( $this->custom_store_url );
+        if ( empty( $store_slug ) ) {
+            return;
+        }
+
+        $store_obj = $this->get_current_store();
+        if ( ! $store_obj ) {
+            return;
+        }
+
+        $store_id = $store_obj->get_id();
+        if ( ! $store_id ) {
+            return;
+        }
+
+        if ( StoreUtil::get_excluded_products( '', $store_id ) ) {
+            return;
+        }
+
+        // Force query to load products.
+        $query->set( 'post_type', 'product' );
+
+        // Add store filter.
+        $meta_query   = $query->get( 'meta_query', array() );
+        $meta_query[] = array(
+            'key'     => Utill::POST_META_SETTINGS['store_id'],
+            'value'   => $store_id,
+            'compare' => '=',
+        );
+        $query->set( 'meta_query', $meta_query );
+
+        // Pagination fix.
+        $paged = max( 1, get_query_var( 'paged' ) );
+        $query->set( 'paged', $paged );
+        $query->set( 'wc_query', 'product_query' );
+    }
+
+    /**
+     * Register custom rewrite rule for stores.
+     */
+    public function register_rule() {
+        $page_id = MultiVendorX()->setting->get_setting( 'store_dashboard_page' );
+
+        $rules = array(
+            array(
+                '^' . $this->custom_store_url . '/([^/]+)/?$',
+                'index.php?' . $this->custom_store_url . '=$matches[1]',
+                'top',
+            ),
+            array(
+                '^' . $this->custom_store_url . '/([^/]+)/page/([0-9]{1,})/?$',
+                'index.php?' . $this->custom_store_url . '=$matches[1]&paged=$matches[2]',
+                'top',
+            ),
+
+            array(
+                '^dashboard/([^/]+)/?([^/]*)/?([0-9]*)/?$',
+                'index.php?page_id=' . $page_id . '&segment=$matches[1]&element=$matches[2]&context_id=$matches[3]',
+                'top',
+            ),
+
+        );
+
+        $rules = apply_filters( 'multivendorx_rewrite_rules', $rules, $this );
+
+        add_rewrite_tag( '%segment%', '([^/]+)' );
+        foreach ( $rules as $rule ) {
+            add_rewrite_rule( $rule[0], $rule[1], $rule[2] );
+        }
+    }
+
+    /**
+     * Register query vars
+     *
+     * @param array $vars Query vars.
+     */
+    public function register_query_var( $vars ) {
+        $vars[] = $this->custom_store_url;
+        $vars[] = 'segment';
+
+        return apply_filters( 'multivendorx_query_vars', $vars, $this );
+    }
+
+    /**
+     * Convert custom endpoint into a virtual page.
+     *
+     * Intercepts the main query and replaces it with the
+     * "store" page when the custom store URL query var is present.
+     *
+     * @param WP_Query $query WordPress query object.
+     * @return void
+     */
+    public function make_endpoint_virtual_page( $query ) {
+        if ( $query->is_main_query() && get_query_var( $this->custom_store_url ) ) {
+            $page = get_page_by_path( 'store' );
+
+            if ( $page ) {
+                $query->is_page           = true;
+                $query->is_singular       = true;
+                $query->is_home           = false;
+                $query->is_archive        = false;
+                $query->post_type         = 'page';
+                $query->posts             = array( $page );
+                $query->post              = $page;
+                $query->queried_object    = $page;
+                $query->queried_object_id = $page->ID;
+            }
+        }
+    }
+
+    public function set_store_page_title( $title ) {
+        if ( get_query_var( $this->custom_store_url ) ) {
+            $store = $this->get_current_store();
+            if ( ! $store ) {
+                return $title;
+            }
+            return $store->get( 'name' ) . ' - ' . get_bloginfo( 'name' );
+        }
+        return $title;
+    }
+
+	/**
+	 * Load the appropriate template for the store endpoint.
+	 *
+	 * Resolves and returns a custom Elementor template if provided,
+	 * otherwise falls back to plugin block or classic PHP templates
+	 * based on theme support.
+	 *
+	 * @param string $template Default template path.
+	 * @return string Modified template path.
+	 */
+    public function load_store_template( $template ) {
+        $store_name = get_query_var( $this->custom_store_url );
+        $store      = $this->get_current_store();
+
+        if ( $store ) {
+            $status      = $store->get( 'status' );
+            $permissions = MultiVendorX()->util->get_permissions() ?? array();
+
+            if ( $permissions && $permissions['hide_store_products'] && ( in_array( $status, array( 'suspended', 'under_review' ), true ) || $permissions['hide_for_compliance'] ) ) {
+                wp_safe_redirect( wc_get_page_permalink( 'shop' ) );
+                exit();
+            }
+        }
+
+        if ( ! empty( $store_name ) ) {
+            $filtered_template = apply_filters( 'multivendorx_store_elementor_template', '' );
+
+            if ( $filtered_template && file_exists( $filtered_template ) ) {
+                return $filtered_template;
+            }
+
+            // Path to plugin block template.
+            $plugin_template = MultiVendorX()->plugin_path . 'templates/store/store.html';
+
+            if ( file_exists( $plugin_template ) && ( wp_is_block_theme() || file_exists( get_theme_file_path( 'theme.json' ) ) ) ) {
+                // Use a temporary PHP wrapper to render the block template.
+                return MultiVendorX()->plugin_path . 'templates/store/store-wrapper.php';
+            }
+
+            // Classic PHP fallback.
+            return MultiVendorX()->plugin_path . 'templates/store/store.php';
+        }
+
+        return $template;
+    }
+
+	/**
+	 * Register and enqueue all scripts and styles needed for the store page.
+	 *
+	 * Loads frontend scripts and styles for store details, tabs, reviews,
+	 * social icons, and other store-specific functionality.
+	 *
+	 * @return void
+	 */
+    public function register_store_state() {
+        $store_slug = get_query_var( $this->custom_store_url );
+
+        if ( ! $store_slug ) {
+            return;
+        }
+
+        // Review block specific style.
+        wp_enqueue_style( 'wc-blocks-style' );
+        wp_enqueue_style( 'wc-blocks-style-all-reviews' );
+
+        FrontendScripts::load_scripts();
+        FrontendScripts::enqueue_script( 'multivendorx-store-provider-script' );
+        FrontendScripts::localize_scripts( 'multivendorx-store-provider-script' );
+        FrontendScripts::enqueue_script( 'multivendorx-follow-store-view-script' );
+        FrontendScripts::localize_scripts( 'multivendorx-marketplace-stores-view-script' );
+        FrontendScripts::localize_scripts( 'multivendorx-marketplace-coupons-view-script' );
+        FrontendScripts::localize_scripts( 'multivendorx-marketplace-products-view-script' );
+        FrontendScripts::enqueue_style( 'multivendorx-store-tabs-style' );
+    }
+	/**
+	 * Add sidebar position class to block template body classes.
+	 *
+	 * Removes existing multivendorx sidebar classes and adds the
+	 * configured sidebar position class if set.
+	 *
+	 * @param array $classes Existing body classes.
+	 * @return array Modified body classes.
+	 */
+	public function add_sidebar_class_for_block_template( $classes ) {
+		$classes = array_filter(
+            $classes,
+            function ( $cls ) {
+                return strpos( $cls, 'multivendorx-sidebar-' ) !== 0;
+            }
+		);
+
+		$position = MultiVendorX()->setting->get_setting( 'store_sidebar', '' );
+		if ( ! empty( $position ) ) {
+			$classes[] = 'multivendorx-sidebar-' . $position;
+		}
+
+		return $classes;
+	}
+
+    /**
+     * Flush rewrite rules
+     */
+    public function flash_rewrite_rules() {
+        $this->register_rule();
+        flush_rewrite_rules();
+    }
+}

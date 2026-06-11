@@ -1,0 +1,258 @@
+import { __ } from '@wordpress/i18n';
+
+export default {
+	id: 'product-preferences',
+	priority: 2,
+	headerTitle: __('Product/listing preferences', 'multivendorx'),
+	headerDescription: __(
+		'Decide which product/listing types, fields, and features stores can access when creating or managing products/listings in their store.',
+		'multivendorx'
+	),
+	headerIcon: 'single-product',
+	submitUrl: 'settings',
+	modal: [
+		{
+			key: 'type_options',
+			type: 'checkbox',
+			label: __('Allowed product/listing options', 'multivendorx'),
+			settingDescription: __(
+				'Select the product/listing fields stores can configure when adding or managing their products/listings.',
+				'multivendorx'
+			),
+
+			desc: __(
+				'<ul><li>Virtual - Choose this option for products/listing that don’t have a physical form (e.g., services, memberships). <li>Downloadable - Use this option for products/listing that customers can download (e.g., software, eBooks).</li><ul>',
+				'multivendorx'
+			),
+			options: [
+				{
+					key: 'virtual',
+					label: __('Virtual', 'multivendorx'),
+					value: 'virtual',
+				},
+				{
+					key: 'downloadable',
+					label: __('Downloadable', 'multivendorx'),
+					value: 'downloadable',
+				},
+			],
+			selectDeselect: true,
+		},
+		{
+			key: 'products_fields',
+			type: 'checkbox',
+			label: __('Edit product/listing page blocks', 'multivendorx'),
+			settingDescription: __(
+				'Control which product/listing data fields are available to stores when creating or editing products/listing.',
+				'multivendorx'
+			),
+
+			options: [
+				{
+					key: 'general',
+					label: __('General information', 'multivendorx'),
+					desc: __(
+						'Store can add description, and price of the product/listing.',
+						'multivendorx'
+					),
+					value: 'general',
+				},
+				{
+					key: 'inventory',
+					label: __('Stock & inventory', 'multivendorx'),
+					desc: __(
+						'Stores can configure stock management options like SKU, stock levels, and availability.',
+						'multivendorx'
+					),
+					value: 'inventory',
+				},
+				{
+					key: 'linked_product',
+					label: __('Related product', 'multivendorx'),
+					desc: __(
+						'Let stores link related products, upsells, and cross-sells.',
+						'multivendorx'
+					),
+					value: 'linked_product',
+				},
+				{
+					key: 'policies',
+					label: __('Policies', 'multivendorx'),
+					desc: __(
+						'Allow stores to add return, refund, or warranty policies to products/listings.',
+						'multivendorx'
+					),
+					value: 'policies',
+				},
+				{
+					key: 'product_tag',
+					label: __('Product tag', 'multivendorx'),
+					desc: __(
+						'Enable tagging so stores can categorize products/listing for easier search and filtering.',
+						'multivendorx'
+					),
+					value: 'product_tag',
+				},
+				{
+					key: 'attribute',
+					label: __('Attribute', 'multivendorx'),
+					desc: __(
+						'Give stores the option to add product/listing features such as size, color, or material.',
+						'multivendorx'
+					),
+					value: 'attribute',
+				},
+			],
+			selectDeselect: true,
+		},
+		{
+			key: 'separator_category_specific',
+			type: 'section',
+			desc: __(
+				'Control how stores select categories while adding products/listing.',
+				'multivendorx'
+			),
+			title: __(
+				'How stores choose product/listing categories',
+				'multivendorx'
+			),
+		},
+		{
+			key: 'category_selection_method',
+			type: 'choice-toggle',
+			label: __('Product/listing category selection', 'multivendorx'),
+			settingDescription: __(
+				'Choose whether stores follow a guided category selection flow or freely choose multiple categories.',
+				'multivendorx'
+			),
+			desc: __(
+				'<ul><li><strong>Never (let me set them)</strong> – SKUs will not be generated automatically. Stores must manually enter a SKU.</li><li><strong>Using the product/listing slug (name)</strong> – Automatically generate the SKU from the product or listing slug if none is provided.</li><li><strong>Using the product/listing ID</strong> – Automatically generate the SKU using the product or listing ID if none is provided.</li></ul>',
+				'multivendorx'
+			),
+			options: [
+				{
+					key: 'yes',
+					label: __('Hierarchical selection', 'multivendorx'),
+					value: 'yes',
+				},
+				{
+					key: 'no',
+					label: __('Free selection', 'multivendorx'),
+					value: 'no',
+				},
+			],
+		},
+
+		{
+			key: 'separator_content',
+			type: 'section',
+			desc: __(
+				'Control how SKUs are handled for products/listing.',
+				'multivendorx'
+			),
+			title: __('SKU generation', 'multivendorx'),
+		},
+		{
+			key: 'sku_generator',
+			type: 'choice-toggle',
+			label: __('SKU management for products/listing', 'multivendorx'),
+			settingDescription: __(
+				'Choose how SKUs for simple, external, or parent products/listing are generated.',
+				'multivendorx'
+			),
+			desc: __(
+				'<ul><li><strong>Never (let me set them)</strong> – SKUs will not be generated automatically. Stores must manually enter a SKU.</li><li><strong>Using the product/listing slug (name)</strong> – Automatically generate the SKU from the product or listing slug if none is provided.</li><li><strong>Using the product/listing ID</strong> – Automatically generate the SKU using the product or listing ID if none is provided.</li></ul>',
+				'multivendorx'
+			),
+			options: [
+				{
+					key: 'never',
+					label: __('Never (let me set them)', 'multivendorx'),
+					value: 'never',
+				},
+				{
+					key: 'slugs',
+					label: __(
+						'Using the product/listing slug (name)',
+						'multivendorx'
+					),
+					value: 'slugs',
+				},
+				{
+					key: 'ids',
+					label: __('Using the product/listing ID', 'multivendorx'),
+					value: 'ids',
+				},
+			],
+		},
+		{
+			key: 'sku_generator_attribute_spaces',
+			type: 'choice-toggle',
+			label: __('SKU space handling', 'multivendorx'),
+			settingDescription: __(
+				'Choose how spaces in attribute names should be handled when generating SKUs.',
+				'multivendorx'
+			),
+			desc: __(
+				'<strong>Space handling options:</strong><ul><li><strong>Keep spaces ( )</strong><br>Spaces in attribute names will remain unchanged in the generated SKU.</li>	<li><strong>Replace with underscore ( _ )</strong><br>Spaces in attribute names will be replaced with underscores when generating the SKU.</li>	<li><strong>Replace with dash ( - )</strong><br>Spaces in attribute names will be replaced with dashes when generating the SKU.</li></ul><strong>Example:</strong><br>Attribute: Blue Large<br>	Keep spaces → Blue Large<br>Underscore → Blue_Large<br>	Dash → Blue-Large',
+				'multivendorx'
+			),
+			options: [
+				{
+					key: 'no',
+					label: __('Keep spaces (   )', 'multivendorx'),
+					value: 'no',
+				},
+				{
+					key: 'underscore',
+					label: __('Replace with underscore ( _ )', 'multivendorx'),
+					value: 'underscore',
+				},
+				{
+					key: 'dash',
+					label: __('Replace with dash ( - )', 'multivendorx'),
+					value: 'dash',
+				},
+			],
+		},
+		{
+			key: 'separator_content',
+			type: 'section',
+			desc: __(
+				'Products/listings similar in type, category, or stores are displayed as related items to guide customers toward additional purchases.',
+				'multivendorx'
+			),
+			title: __('Related products/listings source', 'multivendorx'),
+		},
+		{
+			key: 'recommendation_source',
+			type: 'choice-toggle',
+			label: __('Recommendation source', 'multivendorx'),
+			settingDescription: __(
+				'Choose whether related products/listings are shown from the same store only or from the entire marketplace.',
+				'multivendorx'
+			),
+			desc: __(
+				'<ul><li>Same store - Show related products/listing only from the current store.</li><li>All stores - Show related products/listings from across the marketplace.</li><li>Do not display - Hide related products/listings completely.</li><ul>',
+				'multivendorx'
+			),
+			options: [
+				{
+					key: 'same_store',
+					label: __('Same store', 'multivendorx'),
+					value: 'same_store',
+				},
+				{
+					key: 'all_stores',
+					label: __('All stores', 'multivendorx'),
+					value: 'all_stores',
+				},
+				{
+					key: 'none',
+					label: __('Do not display', 'multivendorx'),
+					value: 'none',
+				},
+			],
+		},
+	],
+};

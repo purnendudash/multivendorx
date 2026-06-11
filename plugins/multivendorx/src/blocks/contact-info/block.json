@@ -1,0 +1,37 @@
+{
+  "apiVersion": 3,
+  "name": "multivendorx/contact-info",
+  "title": "Contact Form",
+  "category": "multivendorx",
+  "icon": "email",
+  "description": "Display a contact form with various settings",
+  "editorScript": "file:./index.js",
+  "viewScript": "file:./view.js",
+  "textdomain": "multivendorx",
+  "attributes": {
+    "hideFromGuests": {
+      "type": "boolean",
+      "default": false
+    },
+    "enableGoogleRecaptcha": {
+      "type": "boolean",
+      "default": false
+    },
+    "googleRecaptchaType": {
+      "type": "string",
+      "default": "v2"
+    },
+    "recaptchaV2Scripts": {
+      "type": "string",
+      "default": ""
+    },
+    "recaptchaV3Sitekey": {
+      "type": "string",
+      "default": ""
+    },
+    "recaptchaV3Secretkey": {
+      "type": "string",
+      "default": ""
+    }
+  }
+}

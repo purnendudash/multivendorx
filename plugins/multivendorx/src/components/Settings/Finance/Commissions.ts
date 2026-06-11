@@ -1,0 +1,512 @@
+/* global appLocalizer */
+import { __ } from '@wordpress/i18n';
+
+const gatewayList = appLocalizer.gateway_list || [];
+const gatewayFields = gatewayList.flatMap((gateway) => [
+	{
+		key: `${gateway.value}_fixed`,
+		type: 'number',
+		preText: appLocalizer.currency_symbol,
+		size: 8,
+		beforeElement: {
+			type: 'preposttext',
+			textType: 'pre',
+			preText: gateway.label,
+		},
+		afterElement: {
+			type: 'preposttext',
+			textType: 'post',
+			postText: '+',
+		},
+	},
+	{
+		key: `${gateway.value}_percentage`,
+		type: 'number',
+		postText: __('%', 'multivendorx'),
+		size: 8,
+	},
+	{
+		key: 'divider',
+		type: 'divider',
+		withoutBorder: true,
+	},
+]);
+
+const nestedFields = [
+	{
+		key: 'default_fixed',
+		type: 'number',
+		preText: appLocalizer.currency_symbol,
+		size: 8,
+		beforeElement: {
+			type: 'preposttext',
+			textType: 'pre',
+			preText: __('Default', 'multivendorx'),
+		},
+		afterElement: {
+			type: 'preposttext',
+			textType: 'post',
+			postText: '+',
+		},
+	},
+	{
+		key: 'default_percentage',
+		type: 'number',
+		postText: __('%', 'multivendorx'),
+		size: 8,
+	},
+	{
+		key: 'divider',
+		type: 'divider',
+		withoutBorder: true,
+	},
+	...gatewayFields,
+];
+
+export default {
+	id: 'commissions',
+	priority: 1,
+	headerTitle: __('Commissions', 'multivendorx'),
+	settingTitle: __(
+		'Commission share from the seller’s product/listing',
+		'multivendorx'
+	),
+	headerDescription: __(
+		'Decide how your marketplace takes commission from sales.',
+		'multivendorx'
+	),
+	headerIcon: 'commission',
+	submitUrl: 'settings',
+	modal: [
+		{
+			key: 'commission_migration_notice',
+			type: 'notice',
+			message: __(
+				'You are currently using the older vendor-specific commission system from previous versions of MultiVendorX. Because of that, the <b>Marketplace commission</b> and <b>Commission value</b> fields shown below will continue to work as vendor-specific until you update or modify this settings page.<br><br>Once you make any change, your marketplace will automatically switch to the new <b>Marketplace commission</b> model. From that point onward, all commissions will be calculated using the updated system, and this notice will no longer appear.',
+				'multivendorx'
+			),
+			noticeType: 'info',
+			displayPosition: 'notice',
+		},
+		{
+			key: 'commission_type',
+			type: 'choice-toggle',
+			label: __('Marketplace commission', 'multivendorx'),
+			settingDescription: __(
+				'Decide how the system should calculate the marketplace commission.',
+				'multivendorx'
+			),
+			desc: __(
+				'<ul><li>Store order based - Calculated on the full order amount of each store. Example: A customer buys from 3 stores → commission applies separately to each store’s order.</li><li>Per item based - Applied to each product/listing in the order. Example: An order with 5 items → commission applies 5 times, once per item.</li></ul>',
+				'multivendorx'
+			),
+			options: [
+				{
+					key: 'store_order',
+					label: __('Store order based', 'multivendorx'),
+					value: 'store_order',
+				},
+				{
+					key: 'per_item',
+					label: __('Per item based', 'multivendorx'),
+					value: 'per_item',
+				},
+			],
+		},
+		{
+			key: 'commission_per_store_order',
+			type: 'nested',
+			label: __('Commission value', 'multivendorx'),
+			desc: __(
+				'Set your default commission rate that will apply to all orders. You can choose between a fixed amount ($) or a percentage (%) of the order value. Additionally, you can create advanced commission rules below to automatically adjust rates based on specific conditions like product/listing price, quantity, or total order value.',
+				'multivendorx'
+			),
+			addButtonLabel: __('Add New', 'multivendorx'),
+			deleteButtonLabel: __('Remove', 'multivendorx'),
+			nestedFields: [
+				{
+					key: 'rule_type',
+					type: 'choice-toggle',
+					label: __('If', 'multivendorx'),
+					options: [
+						{
+							key: 'price',
+							value: 'price',
+							label: __('Product/listing price', 'multivendorx'),
+						},
+						{
+							key: 'quantity',
+							value: 'quantity',
+							label: __(
+								'Product/listing quantity',
+								'multivendorx'
+							),
+						},
+						{
+							key: 'order_value',
+							value: 'order_value',
+							label: __('Order value', 'multivendorx'),
+						},
+					],
+					skipFirstRow: true,
+				},
+				{
+					key: 'rule',
+					type: 'choice-toggle',
+					label: __('is', 'multivendorx'),
+					options: [
+						{
+							key: 'rule1',
+							value: 'less_than',
+							label: __('up to', 'multivendorx'),
+						},
+						{
+							key: 'rule2',
+							value: 'more_than',
+							label: __('more than', 'multivendorx'),
+						},
+					],
+					skipFirstRow: true,
+				},
+				{
+					key: 'product_price',
+					type: 'number',
+					preText: appLocalizer.currency_symbol,
+					size: 8,
+					skipFirstRow: true,
+					afterElement: {
+						type: 'preposttext',
+						textType: 'post',
+						postText: 'then',
+					},
+					dependent: {
+						key: 'rule_type',
+						set: true,
+						value: 'price',
+					},
+				},
+				{
+					key: 'product_qty',
+					type: 'number',
+					size: 8,
+					skipFirstRow: true,
+					afterElement: {
+						type: 'preposttext',
+						textType: 'post',
+						postText: 'then',
+					},
+					dependent: {
+						key: 'rule_type',
+						set: true,
+						value: 'quantity',
+					},
+				},
+				{
+					key: 'order_value',
+					type: 'number',
+					size: 8,
+					preText: appLocalizer.currency_symbol,
+					afterElement: {
+						type: 'preposttext',
+						textType: 'post',
+						postText: 'then',
+					},
+					dependent: {
+						key: 'rule_type',
+						set: true,
+						value: 'order_value',
+					},
+				},
+				{
+					key: 'commission_fixed',
+					type: 'number',
+					preText: appLocalizer.currency_symbol,
+					size: 8,
+					beforeElement: {
+						type: 'preposttext',
+						textType: 'pre',
+						preText: __('Fixed', 'multivendorx'),
+					},
+					afterElement: {
+						type: 'preposttext',
+						textType: 'post',
+						postText: __('+', 'multivendorx'),
+					},
+				},
+				{
+					key: 'commission_percentage',
+					type: 'number',
+					size: 8,
+					postText: __('%', 'multivendorx'),
+				},
+				{
+					afterElement: {
+						type: 'preposttext',
+						textType: 'post',
+						postText: 'commission will be charged.',
+					},
+					skipFirstRow: true,
+				},
+			],
+			dependent: {
+				key: 'commission_type',
+				set: true,
+				value: 'store_order',
+			},
+		},
+		{
+			key: 'commission_per_item',
+			type: 'nested',
+			label: __('Commission value', 'multivendorx'),
+			single: true,
+			desc: __(
+				'Set global commission rates that apply to each individual item quantity. Commission will be calculated by multiplying the rate with the total number of items across all products/listing in the order.',
+				'multivendorx'
+			),
+			nestedFields: [
+				{
+					key: 'commission_fixed',
+					type: 'number',
+					preText: appLocalizer.currency_symbol,
+					size: 8,
+					beforeElement: {
+						type: 'preposttext',
+						textType: 'pre',
+						preText: __('Fixed', 'multivendorx'),
+					},
+					afterElement: {
+						type: 'preposttext',
+						textType: 'post',
+						postText: __('+', 'multivendorx'),
+					},
+				},
+				{
+					key: 'commission_percentage',
+					type: 'number',
+					postText: __('%', 'multivendorx'),
+					size: 8,
+				},
+			],
+			dependent: {
+				key: 'commission_type',
+				set: true,
+				value: 'per_item',
+			},
+		},
+		{
+			key: 'separator_content',
+			type: 'section',
+			title: __(
+				'Shipping & tax distribution in store earnings',
+				'multivendorx'
+			),
+			desc: __(
+				'Choose which order components are factored into commission calculations.',
+				'multivendorx'
+			),
+		},
+		{
+			key: 'give_tax',
+			type: 'choice-toggle',
+			label: __('Tax distribution options', 'multivendorx'),
+			wooCheck: 'taxes_enabled',
+			wooLink:
+				'page=wc-settings&tab=general#taxes_and_coupons_options-description',
+			settingDescription: __(
+				'Configure how taxes are treated in commission calculations.',
+				'multivendorx'
+			),
+			desc: __(
+				'<strong>Example setup:</strong><br> Product price = $1,000<br> Tax rate = 10% → $100<br> Marketplace commission rate = 10%<ul> <li><strong>Marketplace share</strong><br> Customer pays = $1,100 ($1,000 + $100 tax)<br> Marketplace commission = 10% of $1,000 = $100<br> Marketplace receives tax = $100<br> Marketplace total earning = $200 (commission + tax)<br> Store payout = $900 (tax not included)</li> <li><strong>Store share</strong><br> Customer pays = $1,100 ($1,000 + $100 tax)<br> Marketplace commission = 10% of $1,000 = $100<br> Store earnings before tax = $900<br> Tax added to store earnings = $100<br> Final store payout = $1,000<br> Marketplace earning = $100 (commission only)</li> <li><strong>Commission based tax</strong><br> Customer pays = $1,100 ($1,000 + $100 tax)<br> Marketplace commission = 10% of $1,000 = $100<br> Tax on marketplace commission = $10<br> Tax on store earnings = $90<br> Marketplace total earning = $110 (commission + tax share)<br> Store payout = $990 (earnings + tax share)</li> </ul>',
+				'multivendorx'
+			),
+			options: [
+				{
+					key: 'no_tax',
+					label: __('Marketplace share', 'multivendorx'),
+					value: 'no_tax',
+				},
+				{
+					key: 'full_tax',
+					label: __('Store share', 'multivendorx'),
+					value: 'full_tax',
+				},
+				{
+					key: 'commision_based_tax',
+					label: __('Commission based tax', 'multivendorx'),
+					value: 'commision_based_tax',
+				},
+			],
+		},
+		{
+			key: 'shipping_module_notice',
+			type: 'notice',
+			message: __(
+				'Allow each store to manage its own shipping methods, zones, and rates, and to pass shipping amounts to stores, please enable the <a href="' +
+					appLocalizer.site_url +
+					'/wp-admin/admin.php?page=multivendorx#&tab=modules"> "Shipping module".</a></b>',
+				'multivendorx'
+			),
+			noticeType: 'info',
+			display: 'notice',
+		},
+		{
+			key: 'taxable',
+			label: __('Charge tax on shipping cost', 'multivendorx'),
+			settingDescription: __(
+				'Shipping charges will be treated as taxable items during checkout. Otherwise shipping costs will be tax-free.',
+				'multivendorx'
+			),
+			type: 'checkbox',
+			moduleEnabled: 'store-shipping',
+			options: [
+				{
+					key: 'taxable',
+					value: 'taxable',
+				},
+			],
+			look: 'toggle',
+		},
+		{
+			key: 'separator_content',
+			type: 'section',
+			title: __('Fees deducted from store earnings', 'multivendorx'),
+			desc: __(
+				'Determine which fees to deduct from the store earning.',
+				'multivendorx'
+			),
+		},
+		{
+			key: 'marketplace_fees',
+			type: 'nested',
+			label: __('Marketplace fees', 'multivendorx'),
+			single: true,
+			proSetting: true,
+			settingDescription: __(
+				'Set a marketplace fee as a fixed, percentage, or combined rate calculated on the product/listing price. Choose whether the fee is paid by the customer at checkout or deducted from the store’s commission.',
+				'multivendorx'
+			),
+			desc: __(
+				'<strong>Example setup:</strong><br>' +
+					'Total product/listing price = $100<br>' +
+					'Marketplace commission = $2 + 10%<br>' +
+					'Platform fee = 5%<br>' +
+					'<em>(Platform fee is calculated on the total product/listing price)</em><br>' +
+					'<ul>' +
+					'<li><strong>Option 1 – Added to the customer’s order total:</strong><br>' +
+					'Platform fee = 5% of $100 = $5<br>' +
+					'Customer pays = $100 + $5 = $105<br>' +
+					'Store receives = $100 − $12 = $88</li>' +
+					'<li><strong>Option 2 – Deducted from the store’s commission:</strong><br>' +
+					'Customer pays = $100<br>' +
+					'Marketplace commission = $2 + 10% of $100 = $12<br>' +
+					'Platform fee = 5% of $100 = $5<br>' +
+					'Store receives = $100 − (12 + 5) = $83</li>' +
+					'</ul>',
+				'multivendorx'
+			),
+			nestedFields: [
+				{
+					key: 'commission_fixed',
+					type: 'number',
+					preText: appLocalizer.currency_symbol,
+					size: 8,
+					beforeElement: {
+						type: 'preposttext',
+						textType: 'pre',
+						preText: __('Charge a fixed', 'multivendorx'),
+					},
+					afterElement: {
+						type: 'preposttext',
+						textType: 'post',
+						postText: '+',
+					},
+				},
+				{
+					key: 'commission_percentage',
+					type: 'number',
+					size: 8,
+					postText: __('%', 'multivendorx'),
+				},
+				{
+					key: 'rule',
+					type: 'choice-toggle',
+					label: __('to be', 'multivendorx'),
+					options: [
+						{
+							key: 'customer',
+							value: 'customer',
+							label: 'added to the customer’s order total',
+						},
+						{
+							key: 'store',
+							value: 'store',
+							label: 'deducted from the store’s commission',
+						},
+					],
+				},
+			],
+			moduleEnabled: 'marketplace-fee',
+		},
+
+		{
+			key: 'facilitator_fees',
+			type: 'nested',
+			label: __('Facilitator fees', 'multivendorx'),
+			single: true,
+			proSetting: true,
+			settingDescription: __(
+				'Set facilitator fees as a fixed amount, a percentage, or both. These fees are calculated only on the product/listing price and then deducted from the store’s earnings.',
+				'multivendorx'
+			),
+			desc: __(
+				'<strong>Global facilitator:</strong> Assign a single facilitator for the entire marketplace from <a href="' +
+					appLocalizer.site_url +
+					'/wp-admin/admin.php?page=multivendorx#&tab=settings&subtab=facilitator">here</a>.<br><strong>Individual facilitators:</strong> Set facilitators for specific stores from the <em>Facilitator Settings</em> section or the <em>Store Edit</em> page.<br>	Marketplace commission = 20%<br>Facilitator fee = $50 + 5%<br><em>(Facilitator fee is calculated on the total product/listing price)</em><ul><li><strong>Marketplace commission :</strong> = 20% of $1,000 = $200</li><li><strong>Facilitator fee :</strong> $50 + 5% of $1,000 = $100</li><li><strong>Final store payout:</strong> = $1,000 − ($200 + $100) = $700</li></ul>',
+				'multivendorx'
+			),
+			nestedFields: [
+				{
+					key: 'facilitator_fixed',
+					type: 'number',
+					preText: appLocalizer.currency_symbol,
+					size: 8,
+					beforeElement: {
+						type: 'preposttext',
+						textType: 'pre',
+						preText: __('fixed', 'multivendorx'),
+					},
+					afterElement: {
+						type: 'preposttext',
+						textType: 'post',
+						postText: __('+', 'multivendorx'),
+					},
+				},
+				{
+					key: 'facilitator_percentage',
+					type: 'number',
+					postText: '%',
+					size: 8,
+				},
+			],
+			moduleEnabled: 'facilitator',
+		},
+		{
+			key: 'gateway_fees',
+			type: 'nested',
+			label: __('Gateway fees', 'multivendorx'),
+			settingDescription: __(
+				'Set up gateway fees to recover the transaction costs charged by your payment provider. These fees are deducted from the store’s commission so your earnings remain unaffected.',
+				'multivendorx'
+			),
+			rowClass: 'single-line',
+			moduleEnabled: 'payment-gateway-charge',
+			single: true,
+			desc: __(
+				'<strong>Use this setting</strong> to manage transaction fees for different payment methods. You can set a default fee or define specific fees for each payment mode, such as bank transfer or cash on delivery.<br><strong>Example setup:</strong><br> Total order price = $100<br> Marketplace commission rate = 20%<br> Gateway fees = $10 + 5% <ul> <li>Customer pays = $100</li> <li>Marketplace commission = 20% of $100 = $20</li> <li>Gateway fees = $10 + 5% of $100 = $15</li> <li>Total marketplace earning = $20 + $15 = $35</li> <li>Store receives = $100 - $35 = $65</li> </ul>',
+				'multivendorx'
+			),
+			nestedFields,
+		},
+	],
+};

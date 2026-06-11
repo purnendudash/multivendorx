@@ -1,0 +1,322 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>multivendorx REST API Documentation</title>
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px;
+      line-height: 1.7;
+      color: #333;
+    }
+
+    h1,h2,h3,h4 {
+      margin-top: 2rem;
+    }
+
+    pre {
+      background: #f6f8fa;
+      padding: 15px;
+      overflow-x: auto;
+      border-radius: 6px;
+    }
+
+    code {
+      background: #f6f8fa;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    table th,
+    table td {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+
+    table th {
+      background: #f4f4f4;
+    }
+  </style>
+</head>
+<body>
+  <hr>
+<p>title: MULTIVENDORX REST API Documentation v1.0.0
+language_tabs:</p>
+<ul>
+<li>javascript: JavaScript</li>
+<li>curl: cURL</li>
+<li>php: PHP
+language_clients:</li>
+<li>javascript: &quot;&quot;</li>
+<li>curl: &quot;&quot;</li>
+<li>php: &quot;&quot;
+toc_footers: []
+includes: []
+search: true
+highlight_theme: darkula
+headingLevel: 2</li>
+</ul>
+<hr>
+<!-- Generator: Widdershins v4.0.1 --><h1 id="multivendorx-rest-api-documentation">MULTIVENDORX REST API Documentation v1.0.0</h1><blockquote>
+<p>Scroll down for code samples, example requests and responses. Select a language for code samples from the tabs above or the mobile navigation menu.</p>
+</blockquote>
+<p>Dynamically parsed developer reference for the multivendorx platform module.</p>
+<p>Base URLs:</p>
+<ul>
+<li><a href="https://purnendu-multivendorx.github.io/wp-json/multivendorx/v1">https://purnendu-multivendorx.github.io/wp-json/multivendorx/v1</a></li>
+</ul>
+<h1 id="multivendorx-rest-api-documentation-default">Default</h1><h2>Endpoint route auto-extracted from Transactions.php</h2>
+<blockquote>
+<p>Code samples</p>
+</blockquote>
+<pre><code class="language-javascript">
+fetch(&#39;https://purnendu-multivendorx.github.io/wp-json/multivendorx/v1/&#39;,
+{
+  method: &#39;PUT&#39;
+
+})
+.then(function(res) {
+    return res.json();
+}).then(function(body) {
+    console.log(body);
+});
+</code></pre>
+<pre><code class="language-php">&lt;?php
+
+require &#39;vendor/autoload.php&#39;;
+
+$client = new \GuzzleHttp\Client();
+
+// Define array of request body.
+$request_body = array();
+
+try {
+    $response = $client-&gt;request(&#39;PUT&#39;,&#39;https://purnendu-multivendorx.github.io/wp-json/multivendorx/v1/&#39;, array(
+        &#39;headers&#39; =&gt; $headers,
+        &#39;json&#39; =&gt; $request_body,
+       )
+    );
+    print_r($response-&gt;getBody()-&gt;getContents());
+ }
+ catch (\GuzzleHttp\Exception\BadResponseException $e) {
+    // handle exception or api errors.
+    print_r($e-&gt;getMessage());
+ }
+
+ // ...
+</code></pre>
+<p><code>PUT /</code></p>
+<p>Dynamically generated documentation profile mapping for path endpoint <code>/</code>.</p>
+<h3 id="endpoint-route-auto-extracted-from-transactions.php-responses">Responses</h3><table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+<th>Description</th>
+<th>Schema</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>200</td>
+<td><a href="https://tools.ietf.org/html/rfc7231#section-6.3.1">OK</a></td>
+<td>Successful REST API processing transaction payload response.</td>
+<td>None</td>
+</tr>
+</tbody></table>
+<aside class="success">
+This operation does not require authentication
+</aside><h2>Endpoint route auto-extracted from Tracking.php</h2>
+<blockquote>
+<p>Code samples</p>
+</blockquote>
+<pre><code class="language-javascript">
+fetch(&#39;https://purnendu-multivendorx.github.io/wp-json/multivendorx/v1/&#39;,
+{
+  method: &#39;POST&#39;
+
+})
+.then(function(res) {
+    return res.json();
+}).then(function(body) {
+    console.log(body);
+});
+</code></pre>
+<pre><code class="language-php">&lt;?php
+
+require &#39;vendor/autoload.php&#39;;
+
+$client = new \GuzzleHttp\Client();
+
+// Define array of request body.
+$request_body = array();
+
+try {
+    $response = $client-&gt;request(&#39;POST&#39;,&#39;https://purnendu-multivendorx.github.io/wp-json/multivendorx/v1/&#39;, array(
+        &#39;headers&#39; =&gt; $headers,
+        &#39;json&#39; =&gt; $request_body,
+       )
+    );
+    print_r($response-&gt;getBody()-&gt;getContents());
+ }
+ catch (\GuzzleHttp\Exception\BadResponseException $e) {
+    // handle exception or api errors.
+    print_r($e-&gt;getMessage());
+ }
+
+ // ...
+</code></pre>
+<p><code>POST /</code></p>
+<p>Dynamically generated documentation profile mapping for path endpoint <code>/</code>.</p>
+<h3 id="endpoint-route-auto-extracted-from-tracking.php-responses">Responses</h3><table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+<th>Description</th>
+<th>Schema</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>200</td>
+<td><a href="https://tools.ietf.org/html/rfc7231#section-6.3.1">OK</a></td>
+<td>Successful REST API processing transaction payload response.</td>
+<td>None</td>
+</tr>
+</tbody></table>
+<aside class="success">
+This operation does not require authentication
+</aside><h2>Endpoint route auto-extracted from Stores.php</h2>
+<blockquote>
+<p>Code samples</p>
+</blockquote>
+<pre><code class="language-javascript">
+fetch(&#39;https://purnendu-multivendorx.github.io/wp-json/multivendorx/v1/states/{country}&#39;,
+{
+  method: &#39;GET&#39;
+
+})
+.then(function(res) {
+    return res.json();
+}).then(function(body) {
+    console.log(body);
+});
+</code></pre>
+<pre><code class="language-php">&lt;?php
+
+require &#39;vendor/autoload.php&#39;;
+
+$client = new \GuzzleHttp\Client();
+
+// Define array of request body.
+$request_body = array();
+
+try {
+    $response = $client-&gt;request(&#39;GET&#39;,&#39;https://purnendu-multivendorx.github.io/wp-json/multivendorx/v1/states/{country}&#39;, array(
+        &#39;headers&#39; =&gt; $headers,
+        &#39;json&#39; =&gt; $request_body,
+       )
+    );
+    print_r($response-&gt;getBody()-&gt;getContents());
+ }
+ catch (\GuzzleHttp\Exception\BadResponseException $e) {
+    // handle exception or api errors.
+    print_r($e-&gt;getMessage());
+ }
+
+ // ...
+</code></pre>
+<p><code>GET /states/{country}</code></p>
+<p>Dynamically generated documentation profile mapping for path endpoint <code>/states/{country}</code>.</p>
+<h3 id="endpoint-route-auto-extracted-from-stores.php-responses">Responses</h3><table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+<th>Description</th>
+<th>Schema</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>200</td>
+<td><a href="https://tools.ietf.org/html/rfc7231#section-6.3.1">OK</a></td>
+<td>Successful REST API processing transaction payload response.</td>
+<td>None</td>
+</tr>
+</tbody></table>
+<aside class="success">
+This operation does not require authentication
+</aside><h2>Endpoint route auto-extracted from Rest.php</h2>
+<blockquote>
+<p>Code samples</p>
+</blockquote>
+<pre><code class="language-javascript">
+fetch(&#39;https://purnendu-multivendorx.github.io/wp-json/multivendorx/v1/store-products&#39;,
+{
+  method: &#39;GET&#39;
+
+})
+.then(function(res) {
+    return res.json();
+}).then(function(body) {
+    console.log(body);
+});
+</code></pre>
+<pre><code class="language-php">&lt;?php
+
+require &#39;vendor/autoload.php&#39;;
+
+$client = new \GuzzleHttp\Client();
+
+// Define array of request body.
+$request_body = array();
+
+try {
+    $response = $client-&gt;request(&#39;GET&#39;,&#39;https://purnendu-multivendorx.github.io/wp-json/multivendorx/v1/store-products&#39;, array(
+        &#39;headers&#39; =&gt; $headers,
+        &#39;json&#39; =&gt; $request_body,
+       )
+    );
+    print_r($response-&gt;getBody()-&gt;getContents());
+ }
+ catch (\GuzzleHttp\Exception\BadResponseException $e) {
+    // handle exception or api errors.
+    print_r($e-&gt;getMessage());
+ }
+
+ // ...
+</code></pre>
+<p><code>GET /store-products</code></p>
+<p>Dynamically generated documentation profile mapping for path endpoint <code>/store-products</code>.</p>
+<h3 id="endpoint-route-auto-extracted-from-rest.php-responses">Responses</h3><table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+<th>Description</th>
+<th>Schema</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>200</td>
+<td><a href="https://tools.ietf.org/html/rfc7231#section-6.3.1">OK</a></td>
+<td>Successful REST API processing transaction payload response.</td>
+<td>None</td>
+</tr>
+</tbody></table>
+<aside class="success">
+This operation does not require authentication
+</aside>
+</body>
+</html>

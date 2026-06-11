@@ -1,0 +1,312 @@
+/* global appLocalizer */
+import React, { useEffect, useState } from 'react';
+import { __ } from '@wordpress/i18n';
+import {
+	ResponsiveContainer,
+	Tooltip,
+	Legend,
+	PieChart,
+	Pie,
+	Cell,
+} from 'recharts';
+import axios from 'axios';
+import {
+	Analytics,
+	Card,
+	Column,
+	Container,
+	getApiLink,
+	InfoItem,
+	NavigatorHeader,
+} from 'zyra';
+import { formatCurrency } from '@/services/commonFunction';
+
+type Stat = {
+	id: string | number;
+	count: number | string;
+	icon: string;
+	label: string;
+};
+type OverviewProps = {
+	overview: Stat[];
+	data: {
+		month: string;
+		revenue: number;
+		net_sale: number;
+		admin_amount: number;
+	}[];
+	overviewData: { name: string; orders: number; sold_out: number }[];
+	pieData: { name: string; value: number }[];
+	COLORS?: string[];
+};
+interface CommissionDetail {
+	id: string;
+	label: string;
+	count: string;
+	icon: string;
+}
+
+interface EarningSummaryItem {
+	id: string;
+	title: string;
+	price: string;
+}
+
+interface PieDataItem {
+	name: string;
+	value: number;
+}
+const Overview: React.FC<OverviewProps> = () => {
+	const [commissionDetails, setCommissionDeatils] = useState<
+		CommissionDetail[]
+	>([]);
+	const [earningSummary, setEarningSummary] = useState<EarningSummaryItem[]>(
+		[]
+	);
+	const [pieData, setPieData] = useState<PieDataItem[]>([]);
+
+	const fetchCommissionDetails = async () => {
+		axios({
+			method: 'GET',
+			url: getApiLink(appLocalizer, 'commissions'),
+			headers: { 'X-WP-Nonce': appLocalizer.nonce },
+			params: { format: 'reports', store_id: appLocalizer.store_id },
+		})
+			.then((response) => {
+				const data = response.data;
+
+				// Basic calculations
+				const adminEarning =
+					data.total_order_amount - data.commission_total;
+				const storeEarning = data.commission_total;
+
+				const overviewData = [
+					{
+						id: 'total_order_amount',
+						label: __('Total Order Amount', 'multivendorx'),
+						count: formatCurrency(data.total_order_amount),
+						icon: 'order',
+					},
+					{
+						id: 'facilitator_fee',
+						label: __('Facilitator Fee', 'multivendorx'),
+						count: formatCurrency(data.facilitator_fee),
+						icon: 'facilitator',
+					},
+					{
+						id: 'gateway_fee',
+						label: __('Gateway Fee', 'multivendorx'),
+						count: formatCurrency(data.gateway_fee),
+						icon: 'credit-card',
+					},
+					{
+						id: 'shipping_amount',
+						label: __('Shipping Amount', 'multivendorx'),
+						count: formatCurrency(data.shipping_amount),
+						icon: 'shipping',
+					},
+					{
+						id: 'tax_amount',
+						label: __('Tax Amount', 'multivendorx'),
+						count: formatCurrency(data.tax_amount),
+						icon: 'tax-compliance',
+					},
+					{
+						id: 'shipping_tax_amount',
+						label: __('Shipping Tax Amount', 'multivendorx'),
+						count: formatCurrency(data.shipping_tax_amount),
+						icon: 'per-product-shipping',
+					},
+					{
+						id: 'commission_total',
+						label: __('Commission Total', 'multivendorx'),
+						count: formatCurrency(data.commission_total),
+						icon: 'commission',
+					},
+					{
+						id: 'commission_refunded',
+						label: __('Commission Refunded', 'multivendorx'),
+						count: formatCurrency(data.commission_refunded),
+						icon: 'marketplace-refund',
+					},
+				];
+
+				const earningSummary = [
+					{
+						id: 'total_order_amount',
+						title: __('Total Order Amount', 'multivendorx'),
+						price: formatCurrency(data.total_order_amount),
+					},
+					{
+						id: 'admin_earning',
+						title: __('Admin Net Earning', 'multivendorx'),
+						price: formatCurrency(adminEarning),
+					},
+					{
+						id: 'store_earning',
+						title: __('Store Net Earning', 'multivendorx'),
+						price: formatCurrency(storeEarning),
+					},
+					{
+						id: 'facilitator_fee',
+						title: __('Facilitator Fee', 'multivendorx'),
+						price: formatCurrency(data.facilitator_fee),
+					},
+					{
+						id: 'gateway_fee',
+						title: __('Gateway Fee', 'multivendorx'),
+						price: formatCurrency(data.gateway_fee),
+					},
+					{
+						id: 'shipping_amount',
+						title: __('Shipping Amount', 'multivendorx'),
+						price: formatCurrency(data.shipping_amount),
+					},
+					{
+						id: 'tax_amount',
+						title: __('Tax Amount', 'multivendorx'),
+						price: formatCurrency(data.tax_amount),
+					},
+					{
+						id: 'shipping_tax_amount',
+						title: __('Shipping Tax Amount', 'multivendorx'),
+						price: formatCurrency(data.shipping_tax_amount),
+					},
+					{
+						id: 'commission_total',
+						title: __('Commission Total', 'multivendorx'),
+						price: formatCurrency(data.commission_total),
+					},
+					{
+						id: 'commission_refunded',
+						title: __('Commission Refunded', 'multivendorx'),
+						price: formatCurrency(data.commission_refunded),
+					},
+					{
+						id: 'grand_total',
+						title: __('Grand Total', 'multivendorx'),
+						price: formatCurrency(adminEarning + storeEarning),
+					},
+				];
+
+				const pieChartData = [
+					{
+						name: __('Admin Net Earning', 'multivendorx'),
+						value: adminEarning,
+					},
+					{
+						name: __('Store Net Earning', 'multivendorx'),
+						value: storeEarning,
+					},
+					{
+						name: __('Commission Refunded', 'multivendorx'),
+						value: data.commission_refunded,
+					},
+				];
+
+				setCommissionDeatils(overviewData);
+				setEarningSummary(earningSummary);
+				setPieData(pieChartData);
+			})
+			.catch(() => {
+				// Handle error gracefully
+			});
+	};
+
+	useEffect(() => {
+		fetchCommissionDetails();
+	}, []);
+	return (
+		<>
+			<NavigatorHeader
+				headerTitle={__('Overview', 'multivendorx')}
+				headerDescription={__(
+					'Manage your store information and preferences',
+					'multivendorx'
+				)}
+			/>
+
+			<Container>
+				<Column>
+					<Analytics
+						variant="small"
+						data={commissionDetails.map((item, idx) => ({
+							icon: item.icon,
+							iconClass: `admin-color${idx + 1}`,
+							number: item.count,
+							text: __(item.label, 'multivendorx'),
+						}))}
+					/>
+				</Column>
+
+				<Column grid={6}>
+					<Card title={__('Revenue breakdown', 'multivendorx')}>
+						{earningSummary.map((product) => (
+							<>
+								<InfoItem
+									key={product.id}
+									title={product.title}
+									amount={product.price}
+									// isLoading={isLoading}
+								/>
+							</>
+						))}
+					</Card>
+				</Column>
+				<Column grid={6}>
+					<Card title={__('Revenue breakdown', 'multivendorx')}>
+							<ResponsiveContainer width="100%" height={400}>
+								<PieChart>
+									<Pie
+										data={pieData}
+										dataKey="value"
+										nameKey="name"
+										cx="50%"
+										cy="50%"
+										outerRadius={140}
+										innerRadius={80}
+										label={({ name, percent }) =>
+											`${__(name, 'multivendorx')} ${(
+												percent * 100
+											).toFixed(1)}%`
+										}
+										labelLine={false}
+										isAnimationActive={true}
+									>
+										{pieData.map((_, index) => (
+											<Cell
+												key={`cell-${index}`}
+												fill={
+													[
+														'var(--color-secondary)',
+														'var(--color-accent)',
+														'var(--color-support)',
+													][index % 3]
+												}
+											/>
+										))}
+									</Pie>
+									<Tooltip
+										formatter={(value) =>
+											formatCurrency(value)
+										}
+										contentStyle={{
+											backgroundColor: '#fff',
+											borderRadius: '8px',
+											border: '1px solid #ddd',
+										}}
+									/>
+									<Legend
+										verticalAlign="bottom"
+										height={36}
+									/>
+								</PieChart>
+							</ResponsiveContainer>
+					</Card>
+				</Column>
+			</Container>
+		</>
+	);
+};
+
+export default Overview;

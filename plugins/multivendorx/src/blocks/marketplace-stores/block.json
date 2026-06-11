@@ -1,0 +1,16 @@
+{
+	"apiVersion": 3,
+	"name": "multivendorx/marketplace-stores",
+	"title": "Stores List",
+	"category": "multivendorx-shortcodes",
+	"icon": "list-view",
+	"description": "A block that displays stores list using React.",
+	"supports": {
+		"html": false
+	},
+	"textdomain": "multivendorx",
+	"editorScript": "file:./index.js",
+	"viewScript": "file:./view.js",
+	"editorStyle": [ "multivendorx-common-block-style" ],
+  	"style": [ "multivendorx-common-block-style" ]
+}

@@ -1,0 +1,444 @@
+/* global appLocalizer */
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { __ } from '@wordpress/i18n';
+import {
+	getApiLink,
+	FormGroupWrapper,
+	FormGroup,
+	TableCard,
+	BasicInputUI,
+	ButtonInputUI,
+	ChoiceToggleUI,
+	TextAreaUI,
+	PopupUI,
+	TableRow,
+	QueryProps,
+	CategoryCount,
+	InfoItem,
+} from 'zyra';
+
+import Popup from '../../../src/components/Popup/Popup';
+import { formatLocalDate, getUrl } from '../../../src/services/commonFunction';
+
+type StoreQueriesRow = {
+	id: number;
+	product_name: string;
+	product_link: string;
+	question_text: string;
+	answer_text?: string | null;
+	author_name?: string;
+	question_date?: string;
+	time_ago?: string;
+	question_visibility?: string;
+};
+type StoreOption = {
+	label: string;
+	value: number;
+};
+const Queries: React.FC = () => {
+	const [rows, setRows] = useState<TableRow[][]>([]);
+	const [isLoading, setIsLoading] = useState(false);
+	const [totalRows, setTotalRows] = useState<number>(0);
+	const [rowIds, setRowIds] = useState<number[]>([]);
+	const [store, setStore] = useState<StoreOption[] | null>(null);
+	const [categoryCounts, setCategoryCounts] = useState<
+		CategoryCount[] | null
+	>(null);
+
+	const [selectedQueries, setSelectedQueries] =
+		useState<StoreQueriesRow | null>(null);
+	const [answer, setAnswer] = useState('');
+	const [queries, setQueries] = useState('');
+
+	const [selectedQn, setSelectedQn] = useState<{
+		id: number;
+	} | null>(null);
+	const [confirmOpen, setConfirmOpen] = useState(false);
+
+	const handleConfirmDelete = () => {
+		if (!selectedQn) {
+			return;
+		}
+
+		axios({
+			method: 'DELETE',
+			url: getApiLink(appLocalizer, `customer-queries/${selectedQn.id}`),
+			headers: {
+				'X-WP-Nonce': appLocalizer.nonce,
+			},
+		})
+			.then(() => {
+				doRefreshTableData({});
+			})
+			.finally(() => {
+				setConfirmOpen(false);
+				setSelectedQn(null);
+			});
+	};
+
+	const fetchQueriesById = (id: number) => {
+		return axios
+			.get(getApiLink(appLocalizer, `customer-queries/${id}`), {
+				headers: { 'X-WP-Nonce': appLocalizer.nonce },
+			})
+			.then((response) => {
+				const item = response.data;
+				setSelectedQueries({
+					id: item.id,
+					product_name: item.product_name,
+					product_link: item.product_link,
+					question_text: item.question_text,
+					answer_text: item.answer_text || '',
+					author_name: item.author_name,
+					question_date: item.question_date,
+					question_visibility: item.question_visibility || 'public',
+				});
+				setQueries(item.question_text);
+				setAnswer(item.answer_text || '');
+			});
+	};
+
+	useEffect(() => {
+		axios
+			.get(getApiLink(appLocalizer, 'stores'), {
+				headers: { 'X-WP-Nonce': appLocalizer.nonce },
+				params: { options: true },
+			})
+			.then((response) => {
+				const options = (response.data || []).map((store) => ({
+					label: store.store_name,
+					value: store.id,
+				}));
+
+				setStore(options);
+				setIsLoading(false);
+			})
+			.catch(() => {
+				setStore([]);
+				setIsLoading(false);
+			});
+	}, []);
+
+	const handleSaveAnswer = () => {
+		if (!selectedQueries) {
+			return;
+		}
+
+		axios
+			.post(
+				getApiLink(
+					appLocalizer,
+					`customer-queries/${selectedQueries.id}`
+				),
+				{
+					question_text: queries,
+					answer_text: answer,
+					question_visibility:
+						selectedQueries.question_visibility || 'public',
+				},
+				{ headers: { 'X-WP-Nonce': appLocalizer.nonce } }
+			)
+			.then(() => {
+				doRefreshTableData({});
+				// Reset popup
+				setSelectedQueries(null);
+				setAnswer('');
+			})
+			.catch(() => {
+				alert('Failed to save answer');
+			});
+	};
+
+	const headers = {
+		product_name: {
+			label: __('Product', 'multivendorx'),
+			render: (row: any) => (
+				<InfoItem
+					title={row.product_name}
+					titleLink={getUrl(row.product_id, 'product')}
+					avatar={{
+						image: row.product_image,
+						iconClass: row.product_image ? '' : 'single-product',
+					}}
+					descriptions={[
+						{
+							label: __('By', 'multivendorx'),
+							value: row.store_name,
+						},
+					]}
+				/>
+			),
+		},
+		question_text: {
+			label: __('Question', 'multivendorx'),
+			render: (row: any) => (
+				<div className="question-wrapper">
+					<div className="question">{__('Q:', 'multivendorx')} {row.question_text}</div>
+					{row.answer_text && (
+						<div className="answer">{__('A:', 'multivendorx')}  {row.answer_text}</div>
+					)}
+					<div className="desc">{__('By', 'multivendorx')} {row.author_name}</div>
+				</div>
+			),
+		},
+		question_date: {
+			label: __('Date', 'multivendorx'),
+			type: 'date',
+		},
+		total_votes: {
+			label: __('Votes', 'multivendorx'),
+		},
+		question_visibility: {
+			label: __('Visibility', 'multivendorx'),
+			type: 'status' , statusClass: (row) => `${row.status}`,
+		},
+		action: {
+			type: 'action',
+			label: __('Action', 'multivendorx'),
+			actions: [
+				{
+					label: __('Answer', 'multivendorx'),
+					icon: 'answer',
+					onClick: (row) => fetchQueriesById(row.id),
+				},
+				{
+					label: __('Delete', 'multivendorx'),
+					icon: 'delete',
+					onClick: (row) => {
+						setSelectedQn({ id: row.id });
+						setConfirmOpen(true);
+					},
+				},
+			],
+		},
+	};
+
+	const filters = [
+		{
+			key: 'storeId',
+			label: __('Stores', 'multivendorx'),
+			type: 'select',
+			options: store,
+		},
+		{
+			key: 'questionVisibility',
+			label: __('Status', 'multivendorx'),
+			type: 'select',
+			options: [
+				{ label: __('All', 'multivendorx'), value: '' },
+				{ label: __('Public', 'multivendorx'), value: 'public' },
+				{ label: __('Private', 'multivendorx'), value: 'private' },
+			],
+		},
+		{
+			key: 'created_at',
+			label: __('Created Date', 'multivendorx'),
+			type: 'date',
+		},
+	];
+
+	const doRefreshTableData = (query: QueryProps) => {
+		setIsLoading(true);
+		axios
+			.get(getApiLink(appLocalizer, 'customer-queries'), {
+				headers: { 'X-WP-Nonce': appLocalizer.nonce },
+				params: {
+					page: query.paged || 1,
+					row: query.per_page || 10,
+					status: query.categoryFilter || '',
+					search_value: query.searchValue || '',
+					store_id: query?.filter?.storeId,
+					start_date: query.filter?.created_at?.startDate
+						? formatLocalDate(query.filter.created_at.startDate)
+						: '',
+					end_date: query.filter?.created_at?.endDate
+						? formatLocalDate(query.filter.created_at.endDate)
+						: '',
+					question_visibility: query?.filter?.questionVisibility,
+					order_by: query.orderby,
+					order: query.order,
+				},
+			})
+			.then((response) => {
+				const items = response.data || [];
+				const ids = items
+					.filter((item) => item?.id != null)
+					.map((item) => item.id);
+
+				setRowIds(ids);
+				setRows(items);
+				window.multivendorxCustomerStore?.setCount(
+					'customer-queries',
+					Number(response.headers['x-wp-status-unanswered']) || 0
+				);
+				setCategoryCounts([
+					{
+						value: 'all',
+						label: __('All', 'multivendorx'),
+						count: Number(response.headers['x-wp-total']) || 0,
+					},
+					{
+						value: 'has_answer',
+						label: __('Answered', 'multivendorx'),
+						count:
+							Number(response.headers['x-wp-status-answered']) ||
+							0,
+					},
+					{
+						value: 'no_answer',
+						label: __('Unanswered', 'multivendorx'),
+						count:
+							Number(
+								response.headers['x-wp-status-unanswered']
+							) || 0,
+					},
+				]);
+
+				setTotalRows(Number(response.headers['x-wp-total']) || 0);
+				setIsLoading(false);
+			})
+			.catch((error) => {
+				setRows([]);
+				setTotalRows(0);
+				setIsLoading(false);
+				console.error(error);
+			});
+	};
+
+	return (
+		<>
+			<PopupUI
+				position="lightbox"
+				open={confirmOpen}
+				onClose={() => setConfirmOpen(false)}
+				width={31.25}
+			>
+				<Popup
+					confirmMode
+					title={__('Delete Question', 'multivendorx')}
+					confirmMessage={
+						selectedQn
+							? __(
+									'Are you sure you want to delete Question?',
+									'multivendorx'
+								)
+							: ''
+					}
+					confirmYesText={__('Delete', 'multivendorx')}
+					confirmNoText={__('Cancel', 'multivendorx')}
+					onConfirm={handleConfirmDelete}
+					onCancel={() => {
+						setConfirmOpen(false);
+						setSelectedQn(null);
+					}}
+				/>
+			</PopupUI>
+			<TableCard
+				headers={headers}
+				rows={rows}
+				totalRows={totalRows}
+				isLoading={isLoading}
+				onQueryUpdate={doRefreshTableData}
+				ids={rowIds}
+				categoryCounts={categoryCounts}
+				filters={filters}
+				format={appLocalizer.date_format}
+			/>
+			{selectedQueries && (
+				<PopupUI
+					open={selectedQueries}
+					onClose={() => setSelectedQueries(null)}
+					width={30}
+					height="70%"
+					header={{
+						icon: 'question',
+						title: __('Answer Question', 'multivendorx'),
+						description: __(
+							'Ensure unanswered customer questions are addressed and helpful information is available to buyers.',
+							'multivendorx'
+						),
+					}}
+					footer={
+						<ButtonInputUI
+							buttons={[
+								{
+									icon: 'close',
+									text: __('Cancel', 'multivendorx'),
+									color: 'red',
+									onClick: () => setSelectedQueries(null),
+								},
+								{
+									icon: 'save',
+									text: __('Save Answer', 'multivendorx'),
+									onClick: () => handleSaveAnswer(),
+								},
+							]}
+						/>
+					}
+				>
+					<FormGroupWrapper>
+						<FormGroup
+							label={__('Question', 'multivendorx')}
+							htmlFor="phone"
+						>
+							<BasicInputUI
+								name="phone"
+								value={queries}
+								onChange={(value: string) => setQueries(value)}
+							/>
+						</FormGroup>
+						<FormGroup
+							label={__('Answer', 'multivendorx')}
+							htmlFor="ans"
+						>
+							<TextAreaUI
+								name="answer"
+								value={answer}
+								onChange={(value: string) => setAnswer(value)}
+							/>
+						</FormGroup>
+						<FormGroup
+							label={__(
+								'Decide whether this Q&A is visible to everyone or only to the store team',
+								'multivendorx'
+							)}
+							htmlFor="visibility"
+						>
+							<ChoiceToggleUI
+								options={[
+									{
+										key: 'public',
+										value: 'public',
+										label: __('Public', 'multivendorx'),
+									},
+									{
+										key: 'private',
+										value: 'private',
+										label: __('Private', 'multivendorx'),
+									},
+								]}
+								value={
+									selectedQueries.question_visibility ||
+									'public'
+								}
+								onChange={(value) =>
+									setSelectedQueries((prev) =>
+										prev
+											? {
+													...prev,
+													question_visibility: value,
+												}
+											: prev
+									)
+								}
+							/>
+						</FormGroup>
+					</FormGroupWrapper>
+				</PopupUI>
+			)}
+		</>
+	);
+};
+
+export default Queries;

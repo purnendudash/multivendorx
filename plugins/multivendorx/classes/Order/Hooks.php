@@ -1,0 +1,407 @@
+<?php
+/**
+ * MultiVendorX Order Hook class
+ *
+ * @package MultiVendorX
+ */
+
+namespace MultiVendorX\Order;
+
+use MultiVendorX\Store\Store;
+use MultiVendorX\Utill;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * MultiVendorX Order Hook class
+ *
+ * @version     5.0.0
+ * @package     MultiVendorX
+ * @author      MultiVendorX
+ */
+class Hooks {
+    /**
+     * Constructor
+     */
+    public function __construct() {
+        add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'add_metadata_for_line_item' ), 10, 4 );
+        add_action( 'woocommerce_checkout_create_order_shipping_item', array( $this, 'add_metadate_for_shipping_item' ), 10, 4 );
+
+        if ( current_user_can( 'manage_options' ) ) {
+            $analytics_hooks = array(
+                // Orders & Revenue.
+                'woocommerce_analytics_clauses_where_orders_stats_total',
+                'woocommerce_analytics_clauses_where_orders_stats_interval',
+                'woocommerce_analytics_clauses_where_orders_subquery',
+                // Products.
+                'woocommerce_analytics_clauses_where_products_stats_total',
+                'woocommerce_analytics_clauses_where_products_stats_interval',
+                'woocommerce_analytics_clauses_where_products_subquery',
+                // Categories & Taxes.
+                'woocommerce_analytics_clauses_where_categories_subquery',
+                'woocommerce_analytics_clauses_where_taxes_stats_total',
+                'woocommerce_analytics_clauses_where_taxes_stats_interval',
+                'woocommerce_analytics_clauses_where_taxes_subquery',
+                // Coupons.
+                'woocommerce_analytics_clauses_where_coupons_stats_total',
+                'woocommerce_analytics_clauses_where_coupons_stats_interval',
+                'woocommerce_analytics_clauses_where_coupons_subquery',
+            );
+
+            foreach ( $analytics_hooks as $hook ) {
+                add_filter( $hook, array( $this, 'exclude_suborders_analytics' ) );
+            }
+        }
+
+        add_action( 'woocommerce_order_status_processing', array( $this, 'skip_suborder_sales' ), 1 );
+        add_action( 'woocommerce_order_status_completed', array( $this, 'skip_suborder_sales' ), 1 );
+        add_action( 'woocommerce_order_status_on-hold', array( $this, 'skip_suborder_sales' ), 1 );
+
+        // Create store order after valid checkout processed.
+        add_action( 'woocommerce_checkout_order_processed', array( $this, 'create_store_order' ) );
+        add_action( 'woocommerce_store_api_checkout_order_processed', array( $this, 'create_store_order' ) );
+
+        // Create store order from backend.
+        add_action( 'woocommerce_new_order', array( $this, 'manually_create_store_order' ), 10, 2 );
+
+        // After crate suborder order try to sync order status.
+        add_action( 'woocommerce_order_status_changed', array( $this, 'parent_order_to_store_order_status_sync' ), 10, 4 );
+        add_action( 'woocommerce_order_status_changed', array( $this, 'store_order_to_parent_order_status_sync' ), 10, 4 );
+
+        add_action( 'woocommerce_order_status_changed', array( $this, 'trigger_order_status_notifications' ), 50, 4 );
+        add_filter( 'woocommerce_order_item_get_formatted_meta_data', array( $this, 'get_formatted_meta_data' ), 10, 2 );
+    }
+    /**
+     * Skip counting sales for suborders.
+     *
+     * Prevents WooCommerce from recording sales for child orders
+     * by marking them as already recorded.
+     *
+     * @param int $order_id Order ID.
+     *
+     * @return void
+     */
+    public function skip_suborder_sales( $order_id ) {
+        $order = wc_get_order( $order_id );
+
+        if ( ! $order ) {
+            return;
+        }
+
+        // If this order is a suborder.
+        if ( $order->get_parent_id() ) {
+            // Reset recorded sales flag so WooCommerce skips counting.
+            $order->get_data_store()->set_recorded_sales( $order, true );
+        }
+    }
+
+    /**
+     * Add metadata for line item in time of checkout process.
+     *
+     * @param   mixed $item Line Item Object.
+     * @param   mixed $item_key Line Item Key.
+     * @param   mixed $values Line Item Array.
+     * @param   mixed $order Order Object.
+     * @return  void
+     */
+    public function add_metadata_for_line_item( $item, $item_key, $values, $order ) {
+        if ( $order && $order->get_parent_id() === 0 ) {
+            $store = Store::get_store( $item['product_id'], 'product' );
+            if ( $store ) {
+                $item->add_meta_data( Utill::ORDER_META_SETTINGS['sold_by'], '<a href="' . esc_url( MultiVendorX()->store->storeutil->get_store_url( $store->get_id() ) ) . '" target="_blank" rel="noopener noreferrer">' . esc_html( $store->get( 'name' ) ) . '</a>', true );
+            }
+        }
+    }
+
+    /**
+     * Add metadata for shipping item in time of checkout process.
+     *
+     * @param mixed $item Shipping Item Object.
+     * @param mixed $package_key Package Key.
+     * @param mixed $package Package Array.
+     * @param mixed $order Order Object.
+     * @return void
+     */
+    public function add_metadate_for_shipping_item( $item, $package_key, $package, $order ) {
+        $store_id = $package['store_id'] ?? $package_key;
+        if ( $order && $order->get_parent_id() === 0 ) {
+            $item->add_meta_data( Utill::POST_META_SETTINGS['store_id'], $store_id, true );
+            $package_qty = array_sum( wp_list_pluck( $package['contents'], 'quantity' ) );
+            $item->add_meta_data( 'package_qty', $package_qty, true );
+            do_action( 'multivendorx_add_shipping_package_meta' );
+        }
+    }
+
+	/**
+	 * Forces the SQL query to only include top-level parent orders.
+	 *
+	 * @param array $clauses Existing SQL clauses (where, join, etc.).
+	 *
+	 * @return array Modified clauses.
+	 */
+	public function exclude_suborders_analytics( $clauses ) {
+		global $wpdb;
+
+		$table_name = $wpdb->prefix . 'wc_order_stats';
+
+		// Inject the constraint: parent_id must be 0.
+		$clauses[] = "AND {$table_name}.parent_id = 0";
+
+		return $clauses;
+	}
+
+    /**
+     * Create the store orders of a main order from backend.
+     *
+     * @param int    $order_id Parent Order ID.
+     * @param object $order    Order Object.
+     * @return void
+     */
+    public function manually_create_store_order( $order_id, $order ) {
+        $this->create_store_order( $order );
+    }
+
+    /**
+     * Create the store orders of a main order.
+     *
+     * @param   mixed $order Order Object.
+     * @return  void
+     */
+    public function create_store_order( $order ) {
+        if ( is_numeric( $order ) ) {
+            $order = wc_get_order( $order );
+        }
+
+        if ( $order->get_parent_id() || $order->get_meta( Utill::ORDER_META_SETTINGS['has_sub_order'] ) ) {
+            return;
+        }
+
+        MultiVendorX()->order->create_store_orders( $order );
+
+        $order->update_meta_data( Utill::ORDER_META_SETTINGS['has_sub_order'], true );
+        $order->save();
+    }
+
+    /**
+     * Create the store orders of a main order form backend.
+     *
+     * @param   int $order_id Parent Order ID.
+     * @return  void
+     */
+    public function manually_create_order_item_and_suborder( $order_id = 0 ) {
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+			return;
+        }
+
+        $items = $order->get_items();
+        foreach ( $items as $key => $value ) {
+            if ( $order || ( function_exists( 'wcs_is_subscription' ) && wcs_is_subscription( $order ) ) ) {
+                $general_cap = apply_filters( 'multivendorx_sold_by_text', __( 'Sold By', 'multivendorx' ) );
+                $store       = Store::get_store( $value['product_id'], 'product' );
+                if ( $store ) {
+                    if ( ! wc_get_order_item_meta( $key, Utill::POST_META_SETTINGS['store_id'] ) ) {
+                        wc_add_order_item_meta( $key, Utill::POST_META_SETTINGS['store_id'], $store->get_id() );
+                    }
+
+                    if ( ! wc_get_order_item_meta( $key, $general_cap ) ) {
+                        wc_add_order_item_meta( $key, $general_cap, $store->get( 'name' ) );
+                    }
+                }
+            }
+        }
+
+        $this->create_store_order( $order_id );
+    }
+
+    /**
+     * Sync store order based on parent order status change for first time.
+     * Except first time whenever parent order status change it skip for store order.
+     *
+     * @param   mixed $order_id Parent Order ID.
+     * @param   mixed $old_status Old Status.
+     * @param   mixed $new_status New Status.
+     * @param   mixed $order Order Object.
+     * @return  void
+     */
+    public function parent_order_to_store_order_status_sync( $order_id, $old_status, $new_status, $order ) {
+        if ( ! $order_id ) {
+			return;
+        }
+
+        // If order is not a main order or sync before then return.
+        if ( $order->get_parent_id() || $order->get_meta( Utill::ORDER_META_SETTINGS['order_status_synchronized'], true ) ) {
+            return;
+        }
+
+        remove_action( 'woocommerce_order_status_completed', 'wc_paying_customer' );
+
+        // Check if order have suborder then sync.
+        $suborders = MultiVendorX()->order->get_suborders( $order );
+        if ( $suborders ) {
+            foreach ( $suborders as $suborder ) {
+                if ( $suborder && $suborder->get_status() !== $new_status ) {
+                    $suborder->update_status( $new_status, _x( 'Update via parent order: ', 'Order note', 'multivendorx' ) );
+                    $updated = true;
+                }
+            }
+
+            if ( $updated ) {
+                $order->update_meta_data( Utill::ORDER_META_SETTINGS['order_status_synchronized'], true );
+                $order->save();
+            }
+        }
+
+        add_action( 'woocommerce_order_status_completed', 'wc_paying_customer' );
+    }
+
+    /**
+     * Sync parent order base on store order.
+     * If all store order is in same status then change the parent order.
+     *
+     * @param   mixed  $order_id Store Order ID.
+     * @param   mixed  $old_status Old Status.
+     * @param   mixed  $new_status New Status.
+     * @param   object $order Order Object.
+     * @return  void
+     */
+    public function store_order_to_parent_order_status_sync( $order_id, $old_status, $new_status, $order ) {
+
+        $store_id = $order ? absint( $order->get_meta( Utill::POST_META_SETTINGS['store_id'], true ) ) : 0;
+
+        if ( 'completed' !== $new_status ) {
+            return;
+        }
+
+        if ( $store_id ) {
+            $parent_order_id = $order->get_parent_id();
+            if ( $parent_order_id ) {
+                // Remove the action to prevent recursion call.
+                remove_action( 'woocommerce_order_status_changed', array( $this, 'parent_order_to_store_order_status_sync' ), 10, 4 );
+
+                $suborders        = MultiVendorX()->order->get_suborders( $parent_order_id );
+                $all_status_equal = true;
+                foreach ( $suborders as $suborder ) {
+                    if ( $suborder->get_status( 'edit' ) !== $new_status ) {
+                        $all_status_equal = false;
+                        break;
+                    }
+                }
+
+                if ( $all_status_equal ) {
+                    $parent_order = wc_get_order( $parent_order_id );
+                    $parent_order->update_status( $new_status, _x( "Sync from store's suborders: ", 'Order note', 'multivendorx' ) );
+                }
+
+                // Add the action back.
+                add_action( 'woocommerce_order_status_changed', array( $this, 'parent_order_to_store_order_status_sync' ), 10, 4 );
+            }
+        }
+    }
+
+    /**
+     * Trigger order status notifications.
+     * If all store order is in same status then change the parent order.
+     *
+     * @param   mixed  $order_id Store Order ID.
+     * @param   mixed  $old_status Old Status.
+     * @param   mixed  $new_status New Status.
+     * @param   object $order Order Object.
+     * @return  void
+     */
+    public function trigger_order_status_notifications( $order_id, $old_status, $new_status, $order ) {
+
+        $store_id = $order ? absint( $order->get_meta( Utill::POST_META_SETTINGS['store_id'], true ) ) : 0;
+        $store    = new Store( $store_id );
+        if ( ! $store->exists() ) {
+            return;
+        }
+
+        if ( $order->get_parent_id() > 0 ) {
+            if ( 'processing' === $new_status ) {
+                MultiVendorX()->notifications->send_notification_helper(
+                    'order_processing',
+                    $store,
+                    $order,
+                    array(
+						'order_id' => $order->get_id(),
+						'category' => 'activity',
+					)
+                );
+            }
+
+            if ( 'completed' === $new_status ) {
+                MultiVendorX()->notifications->send_notification_helper(
+                    'order_completed',
+                    $store,
+                    $order,
+                    array(
+						'order_id' => $order->get_id(),
+						'category' => 'activity',
+					)
+                );
+            }
+
+            if ( 'cancelled' === $new_status ) {
+                MultiVendorX()->notifications->send_notification_helper(
+                    'order_cancelled',
+                    $store,
+                    $order,
+                    array(
+						'order_id' => $order->get_id(),
+						'category' => 'activity',
+					)
+                );
+            }
+
+            if ( 'refunded' === $new_status ) {
+                MultiVendorX()->notifications->send_notification_helper(
+                    'order_refunded',
+                    $store,
+                    $order,
+                    array(
+						'order_id' => $order->get_id(),
+						'category' => 'activity',
+					)
+                );
+            }
+
+            if ( 'refund-requested' === $old_status && 'processing' === $new_status ) {
+                MultiVendorX()->notifications->send_notification_helper(
+                    'refund_rejected',
+                    $store,
+                    $order,
+                    array(
+						'order_id' => $order->get_id(),
+						'category' => 'activity',
+					)
+                );
+            }
+
+            if ( 'refund-requested' === $old_status && 'refunded' === $new_status ) {
+                MultiVendorX()->notifications->send_notification_helper(
+                    'refund_accepted',
+                    $store,
+                    $order,
+                    array(
+						'order_id' => $order->get_id(),
+						'category' => 'activity',
+					)
+                );
+            }
+        }
+    }
+
+    public function get_formatted_meta_data( $formatted_meta, $item ) {
+        foreach ( $formatted_meta as $key => $meta ) {
+            if ( $meta->key === 'multivendorx_sold_by' ) {
+                $formatted_meta[ $key ]->display_key = __( 'Sold by', 'multivendorx' );
+            }
+            if ( $meta->key === 'store_order_item_id' ) {
+                $formatted_meta[ $key ]->display_key = __( 'Item id', 'multivendorx' );
+            }
+        }
+
+        return $formatted_meta;
+    }
+}

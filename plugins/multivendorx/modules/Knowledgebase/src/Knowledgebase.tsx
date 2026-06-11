@@ -1,0 +1,512 @@
+/* global appLocalizer */
+import React, { useState } from 'react';
+import axios from 'axios';
+import { __ } from '@wordpress/i18n';
+import {
+	getApiLink,
+	NavigatorHeader,
+	TextAreaUI,
+	ChoiceToggleUI,
+	Container,
+	Column,
+	FormGroupWrapper,
+	FormGroup,
+	TableCard,
+	BasicInputUI,
+	ButtonInputUI,
+	PopupUI,
+	TableRow,
+	QueryProps,
+	CategoryCount,
+} from 'zyra';
+import Popup from '../../../src/components/Popup/Popup';
+import {
+	formatLocalDate,
+	truncateText,
+} from '../../../src/services/commonFunction';
+
+type KBForm = {
+	title: string;
+	content: string;
+	status?: 'publish' | 'pending' | 'draft';
+};
+
+export const KnowledgeBase: React.FC = () => {
+	const [rows, setRows] = useState<TableRow[][]>([]);
+	const [isLoading, setIsLoading] = useState(false);
+	const [totalRows, setTotalRows] = useState<number>(0);
+	const [rowIds, setRowIds] = useState<number[]>([]);
+	const [categoryCounts, setCategoryCounts] = useState<
+		CategoryCount[] | null
+	>(null);
+
+	const [submitting, setSubmitting] = useState(false);
+	const [addEntry, setAddEntry] = useState(false);
+
+	const [editId, setEditId] = useState<number | null>(null);
+	const [formData, setFormData] = useState<KBForm>({
+		title: '',
+		content: '',
+		status: 'publish',
+	});
+	const [validationErrors, setValidationErrors] = useState<{
+		[key: string]: string;
+	}>({});
+	const [selectedKb, setSelectedKb] = useState<{
+		id: number;
+	} | null>(null);
+	const [confirmOpen, setConfirmOpen] = useState(false);
+
+	const handleConfirmDelete = () => {
+		if (!selectedKb) {
+			return;
+		}
+
+		const closeConfirm = () => {
+			setConfirmOpen(false);
+			setSelectedKb(null);
+		};
+
+		axios({
+			method: 'DELETE',
+			url: getApiLink(appLocalizer, `knowledgebase/${selectedKb.id}`),
+			headers: { 'X-WP-Nonce': appLocalizer.nonce },
+		})
+			.then(() => {
+				doRefreshTableData({});
+				closeConfirm();
+			})
+			.catch(() => {
+				closeConfirm();
+			});
+	};
+
+	const validateForm = () => {
+		const errors: { [key: string]: string } = {};
+
+		if (!formData.title.trim()) {
+			errors.title = __('Title is required', 'multivendorx');
+		}
+
+		if (!formData.content.trim()) {
+			errors.content = __('Content is required', 'multivendorx');
+		}
+
+		setValidationErrors(errors);
+		return Object.keys(errors).length === 0;
+	};
+
+	const handleCloseForm = () => {
+		setAddEntry(false);
+		setFormData({ title: '', content: '', status: 'pending' }); // reset form
+		setEditId(null); // reset edit mode
+		setValidationErrors({});
+	};
+	// Handle input changes
+	const handleChange = (name: string, value: string) => {
+		setFormData((prev) => ({ ...prev, [name]: value }));
+		// Clear field error when user types
+		if (validationErrors[name]) {
+			setValidationErrors((prev) => {
+				const updated = { ...prev };
+				delete updated[name];
+				return updated;
+			});
+		}
+	};
+
+	const handleBulkAction = (action: string, selectedIds: number[] = []) => {
+		if (!selectedIds.length) {
+			return;
+		}
+
+		if (!action) {
+			return;
+		}
+
+		axios({
+			method: 'POST',
+			url: getApiLink(appLocalizer, 'knowledgebase'),
+			headers: { 'X-WP-Nonce': appLocalizer.nonce },
+			data: { bulk: true, action, ids: selectedIds },
+		})
+			.then(() => {
+				doRefreshTableData({});
+			})
+			.catch(() => {
+				console.error(
+					__('Failed to perform bulk action', 'multivendorx')
+				);
+			});
+	};
+
+	const handleEdit = (id: number) => {
+		axios
+			.get(getApiLink(appLocalizer, `knowledgebase/${id}`), {
+				headers: { 'X-WP-Nonce': appLocalizer.nonce },
+			})
+			.then((response) => {
+				setFormData({
+					title: response.data.title || '',
+					content: response.data.content || '',
+					status: response.data.status || 'draft',
+				});
+				setEditId(id);
+				setAddEntry(true);
+			})
+			.catch(() => {
+				console.error(__('Failed to load entry', 'multivendorx'));
+			});
+	};
+
+	// Submit form
+	const handleSubmit = (status: 'publish' | 'pending' | 'draft') => {
+		if (submitting) {
+			return;
+		}
+		if (!validateForm()) {
+			return;
+		}
+
+		setSubmitting(true);
+
+		const endpoint = editId
+			? getApiLink(appLocalizer, `knowledgebase/${editId}`)
+			: getApiLink(appLocalizer, 'knowledgebase');
+
+		const payload = { ...formData, status };
+
+		axios({
+			method: 'POST',
+			url: endpoint,
+			headers: { 'X-WP-Nonce': appLocalizer.nonce },
+			data: payload,
+		})
+			.then((response) => {
+				if (response.data?.success) {
+					handleCloseForm();
+					doRefreshTableData({});
+				}
+				setSubmitting(false);
+			})
+			.catch(() => {
+				console.error(__('Failed to save entry', 'multivendorx'));
+				setSubmitting(false);
+			});
+	};
+
+	const headers = {
+		title: {
+			label: __('Name your article', 'multivendorx'),
+		},
+		content: {
+			label: __('Write your explanation or tutorial', 'multivendorx'),
+			type: 'content',
+			render: (row) => truncateText(row.content, 30),
+		},
+		status_label: {
+			label: __('Status', 'multivendorx'),
+			type: 'status', statusClass: (row) => `${row.status}`,
+		},
+		date_created: {
+			label: __('Date', 'multivendorx'),
+			type: 'date',
+		},
+		action: {
+			type: 'action',
+			label: __('Action', 'multivendorx'),
+			actions: [
+				{
+					label: __('Edit', 'multivendorx'),
+					icon: 'edit',
+					onClick: (row) => handleEdit(row.id),
+				},
+				{
+					label: __('Delete', 'multivendorx'),
+					icon: 'delete',
+					onClick: (row) => {
+						setSelectedKb({ id: row.id });
+						setConfirmOpen(true);
+					},
+					className: 'danger',
+				},
+			],
+		},
+	};
+
+	const doRefreshTableData = (query: QueryProps) => {
+		setIsLoading(true);
+
+		axios
+			.get(getApiLink(appLocalizer, 'knowledgebase'), {
+				headers: { 'X-WP-Nonce': appLocalizer.nonce },
+				withCredentials: true,
+				params: {
+					page: query.paged || 1,
+					row: query.per_page || 10,
+					status: query.categoryFilter || '',
+					search_value: query.searchValue || '',
+					start_date: query.filter?.created_at?.startDate
+						? formatLocalDate(query.filter.created_at.startDate)
+						: '',
+					end_date: query.filter?.created_at?.endDate
+						? formatLocalDate(query.filter.created_at.endDate)
+						: '',
+				},
+			})
+			.then((response) => {
+				const items = response.data || [];
+
+				const ids = items
+					.filter((kb) => kb?.id != null)
+					.map((kb) => kb.id);
+
+				setRowIds(ids);
+				setRows(items);
+
+				setCategoryCounts([
+					{
+						value: 'all',
+						label: __('All', 'multivendorx'),
+						count: Number(response.headers['x-wp-total']) || 0,
+					},
+					{
+						value: 'publish',
+						label: __('Published', 'multivendorx'),
+						count:
+							Number(response.headers['x-wp-status-publish']) ||
+							0,
+					},
+					{
+						value: 'pending',
+						label: __('Pending', 'multivendorx'),
+						count:
+							Number(response.headers['x-wp-status-pending']) ||
+							0,
+					},
+					{
+						value: 'draft',
+						label: __('Draft', 'multivendorx'),
+						count:
+							Number(response.headers['x-wp-status-draft']) || 0,
+					},
+				]);
+
+				setTotalRows(Number(response.headers['x-wp-total']) || 0);
+			})
+			.catch(() => {
+				setRows([]);
+				setTotalRows(0);
+			})
+			.then(() => {
+				setIsLoading(false);
+			});
+	};
+
+	const filters = [
+		{
+			key: 'created_at',
+			label: __('Created Date', 'multivendorx'),
+			type: 'date',
+		},
+	];
+
+	const bulkActions = [
+		{ label: __('Published', 'multivendorx'), value: 'publish' },
+		{ label: __('Pending', 'multivendorx'), value: 'pending' },
+		{ label: __('Delete', 'multivendorx'), value: 'delete' },
+	];
+	return (
+		<>
+			<PopupUI
+				position="lightbox"
+				open={confirmOpen}
+				onClose={() => setConfirmOpen(false)}
+				width={31.25}
+				height="auto"
+			>
+				<Popup
+					confirmMode
+					title={__('Delete Knowledge Base', 'multivendorx')}
+					confirmMessage={
+						selectedKb
+							? __(
+								'Are you sure you want to delete this knowledge base?',
+								'multivendorx'
+							)
+							: ''
+					}
+					confirmYesText={__('Delete', 'multivendorx')}
+					confirmNoText={__('Cancel', 'multivendorx')}
+					onConfirm={handleConfirmDelete}
+					onCancel={() => {
+						setConfirmOpen(false);
+						setSelectedKb(null);
+					}}
+				/>
+			</PopupUI>
+
+			<NavigatorHeader
+				headerIcon="knowledgebase"
+				headerTitle={__('Knowledge Base', 'multivendorx')}
+				headerDescription={__(
+					'Build your knowledge base: add new guides or manage existing ones in one place.',
+					'multivendorx'
+				)}
+				buttons={[
+					{
+						label: __('Add New', 'multivendorx'),
+						icon: 'plus',
+						onClick: () => {
+							setValidationErrors({});
+							setAddEntry(true);
+						},
+					},
+				]}
+			/>
+
+			{addEntry && (
+				<PopupUI
+					open={addEntry}
+					onClose={handleCloseForm}
+					width={31.25}
+					height="70%"
+					position="slide-right-to-left"
+					showBackdrop={true}
+					header={{
+						icon: 'knowledgebase',
+						title: editId
+							? __('Edit Knowledgebase', 'multivendorx')
+							: __('Add Knowledgebase', 'multivendorx'),
+						description: __(
+							'Write and publish a new knowledge base article to help stores navigate their dashboard.',
+							'multivendorx'
+						),
+					}}
+					footer={
+						<ButtonInputUI
+							buttons={[
+								{
+									icon: 'close',
+									text: __('Cancel', 'multivendorx'),
+									color: 'red',
+									onClick: handleCloseForm,
+								},
+								{
+									icon: 'save',
+									text: __('Save', 'multivendorx'),
+									onClick: () =>
+										handleSubmit(
+											formData.status || 'draft'
+										),
+								},
+							]}
+						/>
+					}
+				>
+					<>
+						<FormGroupWrapper>
+							<FormGroup
+								label={__('Title', 'multivendorx')}
+								htmlFor="Title"
+							>
+								<BasicInputUI
+									name="title"
+									value={formData.title}
+									onChange={(val) =>
+										handleChange('title', val as string)
+									}
+									msg={{
+										type: 'error',
+										massage: validationErrors.title,
+									}}
+								/>
+							</FormGroup>
+							<FormGroup
+								label={__('Content', 'multivendorx')}
+								htmlFor="Content"
+							>
+								<TextAreaUI
+									name="content"
+									value={formData.content}
+									onChange={(val) =>
+										handleChange('content', val as string)
+									}
+									usePlainText={false}
+									tinymceApiKey={
+										appLocalizer.admin_settings[
+										'overview'
+										]['tinymce_api_section'] ?? ''
+									}
+									msg={{
+										type: 'error',
+										massage: validationErrors.content,
+									}}
+								/>
+							</FormGroup>
+							<FormGroup
+								label={__('Status', 'multivendorx')}
+								htmlFor="status"
+							>
+								<ChoiceToggleUI
+									options={[
+										{
+											key: 'publish',
+											value: 'publish',
+											label: __(
+												'Published',
+												'multivendorx'
+											),
+										},
+										{
+											key: 'pending',
+											value: 'pending',
+											label: __(
+												'Pending',
+												'multivendorx'
+											),
+										},
+										{
+											key: 'draft',
+											value: 'draft',
+											label: __('Draft', 'multivendorx'),
+										},
+									]}
+									value={formData.status}
+									onChange={(val: string) =>
+										handleChange('status', val)
+									}
+								/>
+							</FormGroup>
+						</FormGroupWrapper>
+					</>
+				</PopupUI>
+			)}
+			<Container general>
+				<Column>
+					<TableCard
+						headers={headers}
+						rows={rows}
+						totalRows={totalRows}
+						isLoading={isLoading}
+						onQueryUpdate={doRefreshTableData}
+						ids={rowIds}
+						categoryCounts={categoryCounts}
+						search={{}}
+						filters={filters}
+						bulkActions={bulkActions}
+						onBulkActionApply={(
+							action: string,
+							selectedIds: []
+						) => {
+							handleBulkAction(action, selectedIds);
+						}}
+						format={appLocalizer.date_format}
+					/>
+				</Column>
+			</Container>
+		</>
+	);
+};
+
+export default KnowledgeBase;

@@ -1,0 +1,205 @@
+@use './dashboardConfig.scss' as *;
+
+// .card-content {
+//     .right-form-wrapper {
+//         display: flex;
+//         justify-content: end;
+
+//         .form-group {
+//             width: 40%;
+//             display: flex;
+//             align-items: center;
+
+//             label {
+//                 width: 50%;
+//             }
+//         }
+//     }
+// }
+
+.category-breadcrumb-wrapper {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.625rem;
+    align-items: center;
+
+    span {
+        cursor: pointer;
+        color: $theme-color;
+    }
+}
+
+.category-wrapper {
+    width: 100%;
+
+    ul {
+        list-style-type: none;
+        margin: 0;
+
+        li {
+            position: relative;
+        }
+
+        label {
+            margin: 0 !important;
+        }
+        .category-name{
+            padding-left: 0.313rem;
+        }
+        .sub-category {
+            padding: 0.5rem 0.5rem 0;
+        }
+
+        .category {
+            padding-bottom: 0.5rem;
+            line-height: 2;
+        }
+
+        .category:last-child {
+            padding: 0;
+        }
+
+        ul {
+            padding-left: 1.313rem;
+        }
+    }
+
+    // li:has(li) {
+    //     padding-bottom: 0 !important;
+    // }
+
+    &.template2 {
+        li {
+            background: $theme-background-color;
+            padding: 0.625rem 1rem;
+            cursor: pointer;
+        }
+
+        .category {
+            input {
+                position: absolute;
+                border-radius: 0;
+                top: 0;
+                left: 0;
+                opacity: 0;
+            }
+        }
+    }
+}
+
+
+// Product Add-ons start
+.addon-row-container {
+    border: $border-light-small;
+    border-radius: $border-radius-small;
+    padding: 1rem;
+
+    .buttons-wrapper {
+        width: 100%;
+
+        &.delete {
+            margin-top: -1.625rem;
+
+            .admin-btn {
+                padding: 0.5rem 0.75rem;
+            }
+        }
+    }
+
+    .setting-form-input {
+        width: 100%;
+    }
+}
+// Product Add-ons end
+
+
+// varient meta start
+.variation-title-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.063rem;
+    border-bottom: $border-light-small;
+    padding-bottom: 1rem;
+}
+
+
+.variant-wrapper {
+    border: $border-light-small;
+    border-radius: $border-radius-small;
+
+    .variant {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .option-wrapper {
+        padding: 1rem 5rem 0 5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.625rem;
+
+        .settings-form-label {
+            margin: 0;
+        }
+
+        .variant {
+            position: relative;
+
+            .drag-icon {
+                position: absolute;
+                left: -1.313rem;
+            }
+        }
+    }
+
+    .add-new {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        .add-input {
+            width: 55%;
+        }
+    }
+
+    // show variant
+    .variant-show {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        padding: 1rem;
+
+        .attributes {
+            font-size: 1.125rem;
+            font-weight: 500;
+            margin-bottom: 0.75rem;
+        }
+
+        .variantion-wrapper {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+    }
+
+    .edit-wrapper {
+        padding: 0.5rem 1rem 1rem;
+
+        .buttons-wrapper.edit {
+            margin-bottom: 0.625rem;
+            margin-top: -1.5rem;
+
+            .admin-btn {
+                padding: 0.5rem 0.75rem;
+            }
+        }
+
+        .setting-form-input {
+            width: 100%;
+        }
+    }
+}
+
+// varient meta end

@@ -1,0 +1,235 @@
+<?php
+/**
+ * Modules class file
+ *
+ * @package MultiVendorX
+ */
+
+namespace MultiVendorX\MarketplaceCompliance;
+
+use MultiVendorX\MarketplaceCompliance\Util;
+use MultiVendorX\Utill;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * MultiVendorX REST Marketplace Compliance Controller.
+ *
+ * @class       Module class
+ * @version     5.0.0
+ * @author      MultiVendorX
+ */
+class Rest extends \WP_REST_Controller {
+
+
+    /**
+     * Route base.
+     *
+     * @var string
+     */
+    protected $rest_base = 'compliance/report-abuse';
+
+    /**
+     * Constructor.
+     */
+    public function __construct() {
+        add_action( 'rest_api_init', array( $this, 'register_routes' ), 10 );
+    }
+
+    /**
+     * Register the routes for compliance.
+     */
+    public function register_routes() {
+        register_rest_route(
+            MultiVendorX()->rest_namespace,
+            '/' . $this->rest_base,
+            array(
+                array(
+                    'methods'             => \WP_REST_Server::READABLE,
+                    'callback'            => array( $this, 'get_items' ),
+                    'permission_callback' => array( $this, 'get_items_permissions_check' ),
+                ),
+            )
+        );
+
+        register_rest_route(
+            MultiVendorX()->rest_namespace,
+            '/' . $this->rest_base . '/(?P<id>[\d]+)',
+            array(
+                array(
+                    'methods'             => \WP_REST_Server::DELETABLE,
+                    'callback'            => array( $this, 'delete_item' ),
+                    'permission_callback' => array( $this, 'update_item_permissions_check' ),
+                    'args'                => array(
+                        'id' => array( 'required' => true ),
+                    ),
+                ),
+            )
+        );
+    }
+
+    /**
+     * Check whether a given request has access to read items.
+     *
+     * @param object $request Full data about the request.
+     */
+    public function get_items_permissions_check( $request ) {
+        return current_user_can( 'manage_options' ) || current_user_can( 'edit_stores' );// phpcs:ignore WordPress.WP.Capabilities.Unknown
+    }
+
+    /**
+     * Check whether a given request has access to update items.
+     *
+     * @param object $request Full data about the request.
+     */
+    public function update_item_permissions_check( $request ) {
+        return current_user_can( 'manage_options' ) || current_user_can( 'edit_stores' );// phpcs:ignore WordPress.WP.Capabilities.Unknown
+    }
+
+
+    /**
+     * Retrieve a collection of items.
+     *
+     * @param object $request Full details about the request.
+     */
+    public function get_items( $request ) {
+        // Verify nonce.
+        $nonce = $request->get_header( 'X-WP-Nonce' );
+        if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+            $error = new \WP_Error( 'invalid_nonce', __( 'Invalid nonce', 'multivendorx' ), array( 'status' => 403 ) );
+
+            // Log the error.
+            if ( is_wp_error( $error ) ) {
+                MultiVendorX()->util->log( $error );
+            }
+
+            return $error;
+        }
+        try {
+            $limit  = intval( $request->get_param( 'row' ) ) > 0 ? intval( $request->get_param( 'row' ) ) : 10;
+            $page   = intval( $request->get_param( 'page' ) ) > 0 ? intval( $request->get_param( 'page' ) ) : 1;
+            $offset = ( $page - 1 ) * $limit;
+
+            // Get filters.
+            $store_id = $request->get_param( 'store_id' );
+            $dates    = Utill::normalize_date_range(
+                $request->get_param( 'start_date' ),
+                $request->get_param( 'end_date' )
+            );
+            $order_by = $request->get_param( 'order_by' ) ? $request->get_param( 'order_by' ) : 'created_at';
+            $order    = strtoupper( $request->get_param( 'order' ) ) === 'ASC' ? 'ASC' : 'DESC';
+
+            // Prepare args.
+            $args = array(
+                'limit'    => $limit,
+                'offset'   => $offset,
+                'order_by' => $order_by,
+                'order'    => $order,
+            );
+
+            if ( '' !== isset( $store_id ) && $store_id ) {
+                $args['store_ids'] = array( intval( $store_id ) );
+            }
+
+            if ( ! empty( $dates['start_date'] ) && ! empty( $dates['end_date'] ) ) {
+                $args['date_range'] = array(
+                    'start' => $dates['start_date'],
+                    'end'   => $dates['end_date'],
+                );
+            }
+
+            // Fetch reports.
+            $reports = Util::get_report_abuse_information( $args );
+
+            $formatted = array_map(
+                function ( $r ) {
+                    $store   = new \MultiVendorX\Store\Store( $r['store_id'] );
+                    $product = wc_get_product( $r['product_id'] );
+                    $image   = $product ? wp_get_attachment_image_url( $product->get_image_id(), 'thumbnail' ) : '';
+                    return array(
+                        'id'             => (int) $r['ID'],
+                        'store_id'       => (int) $r['store_id'],
+                        'store'          => $store ? $store->get_data() : null,
+                        'product_id'     => (int) $r['product_id'],
+                        'product'        => $product ? array_merge( $product->get_data(), array( 'image' => $image ) ) : null,
+						'name'           => $r['name'],
+                        'email'          => $r['email'],
+                        'reason'         => $r['message'],
+                        'created_at'     => Utill::multivendorx_rest_prepare_date_response( $r['created_at'] ),
+                        'updated_at'     => Utill::multivendorx_rest_prepare_date_response( $r['updated_at'] ),
+                        'created_at_gmt' => Utill::multivendorx_rest_prepare_date_response( $r['created_at'], true ),
+                        'updated_at_gmt' => Utill::multivendorx_rest_prepare_date_response( $r['updated_at'], true ),
+                    );
+                },
+                $reports
+            );
+
+            $response    = rest_ensure_response( $formatted );
+            $total_count = Util::get_report_abuse_information( array( 'count' => true ) );
+            $response->header( 'X-WP-Total', (int) $total_count );
+            return $response;
+        } catch ( \Exception $e ) {
+            MultiVendorX()->util->log( $e );
+
+            return new \WP_Error( 'server_error', __( 'Unexpected server error', 'multivendorx' ), array( 'status' => 500 ) );
+        }
+    }
+
+
+    /**
+     * Delete a single item.
+     *
+     * @param object $request Full details about the request.
+     */
+    public function delete_item( $request ) {
+        $nonce = $request->get_header( 'X-WP-Nonce' );
+        if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+            $error = new \WP_Error( 'invalid_nonce', __( 'Invalid nonce', 'multivendorx' ), array( 'status' => 403 ) );
+
+            // Log the error.
+            if ( is_wp_error( $error ) ) {
+                MultiVendorX()->util->log( $error );
+            }
+
+            return $error;
+        }
+        try {
+            // Get report ID.
+            $id = absint( $request->get_param( 'id' ) );
+            if ( ! $id ) {
+                return new \WP_Error(
+                    'invalid_id',
+                    __( 'Invalid report ID', 'multivendorx' ),
+                    array( 'status' => 400 )
+                );
+            }
+
+            // Fetch the report.
+            $report = reset( Util::get_report_abuse_information( array( 'id' => $id ) ) );
+            if ( ! $report ) {
+                return new \WP_Error(
+                    'not_found',
+                    __( 'Report not found', 'multivendorx' ),
+                    array( 'status' => 404 )
+                );
+            }
+
+            // Delete via Util helper.
+            $deleted = Util::delete_report_abuse( $id );
+
+            if ( ! $deleted ) {
+                return new \WP_Error(
+                    'delete_failed',
+                    __( 'Failed to delete report', 'multivendorx' ),
+                    array( 'status' => 500 )
+                );
+            }
+
+            return rest_ensure_response( array( 'success' => true ) );
+        } catch ( \Exception $e ) {
+            MultiVendorX()->util->log( $e );
+
+            return new \WP_Error( 'server_error', __( 'Unexpected server error', 'multivendorx' ), array( 'status' => 500 ) );
+        }
+    }
+}

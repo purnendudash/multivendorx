@@ -1,0 +1,38 @@
+import { __ } from '@wordpress/i18n';
+
+export default {
+	id: 'deactivated',
+	priority: 1,
+	name: __('Permanently deactivated', 'multivendorx'),
+	desc: '',
+	icon: 'adminfont-store-inventory',
+	submitUrl: 'settings',
+	modal: [
+		{
+			key: 'paid_promotion_limit',
+			label: __('Account capabilities', 'multivendorx'),
+			type: 'itemlist',
+			className: 'checklist',
+			items: [
+				{
+					title: __('Cannot log in to dashboard', 'multivendorx'),
+					icon: 'cross',
+				},
+				{
+					title: __(
+						'Cannot access selling privileges',
+						'multivendorx'
+					),
+					icon: 'cross',
+				},
+				{
+					title: __(
+						'Cannot view or manage product listings',
+						'multivendorx'
+					),
+					icon: 'cross',
+				},
+			],
+		},
+	],
+};

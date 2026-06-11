@@ -1,0 +1,66 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "MULTIVENDORX REST API Documentation",
+    "description": "Dynamically parsed developer reference for the multivendorx platform module.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://purnendu-multivendorx.github.io/wp-json/multivendorx/v1"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Endpoint route auto-extracted from Transactions.php",
+        "description": "Dynamically generated documentation profile mapping for path endpoint `/`.",
+        "responses": {
+          "200": {
+            "description": "Successful REST API processing transaction payload response."
+          }
+        }
+      },
+      "put": {
+        "summary": "Endpoint route auto-extracted from Transactions.php",
+        "description": "Dynamically generated documentation profile mapping for path endpoint `/`.",
+        "responses": {
+          "200": {
+            "description": "Successful REST API processing transaction payload response."
+          }
+        }
+      },
+      "post": {
+        "summary": "Endpoint route auto-extracted from Tracking.php",
+        "description": "Dynamically generated documentation profile mapping for path endpoint `/`.",
+        "responses": {
+          "200": {
+            "description": "Successful REST API processing transaction payload response."
+          }
+        }
+      }
+    },
+    "/states/{country}": {
+      "get": {
+        "summary": "Endpoint route auto-extracted from Stores.php",
+        "description": "Dynamically generated documentation profile mapping for path endpoint `/states/{country}`.",
+        "responses": {
+          "200": {
+            "description": "Successful REST API processing transaction payload response."
+          }
+        }
+      }
+    },
+    "/store-products": {
+      "get": {
+        "summary": "Endpoint route auto-extracted from Rest.php",
+        "description": "Dynamically generated documentation profile mapping for path endpoint `/store-products`.",
+        "responses": {
+          "200": {
+            "description": "Successful REST API processing transaction payload response."
+          }
+        }
+      }
+    }
+  }
+}

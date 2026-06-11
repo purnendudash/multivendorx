@@ -1,0 +1,9 @@
+{
+    "name": "moowoodle/moodle-enrollment-mapping",
+    "title": "Product meta box",
+    "category": "woocommerce",
+    "apiVersion": 3,
+    "editorScript": "file:./index.js",
+    "style": "file:./index.css",
+    "textdomain" : "moowoodle"
+}

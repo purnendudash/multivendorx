@@ -1,0 +1,645 @@
+@use '../config.scss' as *;
+
+// welcome section start
+.pro-banner-wrapper {
+    height: 100%;
+    display: flex;
+    justify-content: space-between;
+
+    .heading {
+        font-size: 1.75rem;
+        line-height: 2.313rem;
+        font-weight: 600;
+        color: #000000d1;
+    }
+
+    .description {
+        font-size: 0.9rem;
+        padding: 0.313rem 0;
+        margin-bottom: 2rem;
+        line-height: 1.313rem;
+    }
+
+    .button-wrapper {
+        display: flex;
+    }
+
+    a:hover {
+        color: #000;
+    }
+
+    .image {
+        display: flex;
+        flex-direction: column;
+        align-items: end;
+
+        img {
+            width: 11rem;
+        }
+    }
+}
+
+// welcome section end
+
+// section pro banner
+.pro-banner {
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: $border-radius-small;
+    margin-top: 2rem;
+
+    .text {
+        font-size: 1.25rem;
+        color: #000;
+    }
+
+    .des {
+        padding-bottom: 0.813rem;
+    }
+}
+
+// pro banner end
+
+.cards {
+    .title-wrapper {
+        display: flex;
+        justify-content: space-between;
+        padding-bottom: 2.5rem;
+
+        div {
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        span {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+    }
+
+    .card-body {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+
+        .value {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+
+            span {
+                font-size: 1.7rem;
+                font-weight: 600;
+            }
+
+            a {
+                text-decoration: underline;
+                color: $text-color;
+            }
+        }
+
+        .icon {
+            padding: 0.625rem;
+            font-size: 1.8rem;
+            color: $theme-color;
+            background: #5007aa26;
+            border-radius: $border-radius-small;
+        }
+    }
+}
+
+// top items start (check product report and delete)
+.top-items {
+    .items {
+        display: flex;
+        width: 100%;
+        justify-content: space-between;
+        padding: 0.625rem 0;
+
+        .left-side {
+            display: flex;
+            gap: 0.5rem;
+            align-items: start;
+
+            .icon {
+                font-size: 1.25rem;
+                margin-top: 0.313rem;
+
+                span {
+                    font-size: 1rem;
+                }
+            }
+
+            .image {
+                img {
+                    height: 2.5rem;
+                }
+            }
+
+            .item-title {
+                font-size: 1rem;
+                color: #000;
+            }
+
+            .sub-text {
+                font-size: 0.813rem;
+                padding-top: 0.125rem;
+            }
+        }
+
+        .right-side {
+            .price {
+                font-size: 1.125rem;
+            }
+        }
+    }
+}
+
+// top items end
+
+// help support tab start
+.support-wrapper {
+    .support-item {
+        display: flex;
+        gap: 1rem;
+        padding: 0.313rem;
+        margin-bottom: 0.313rem;
+        border-bottom: $border-light-small;
+
+        .image {
+            i {
+                font-size: 1.45rem;
+                color: $theme-color;
+            }
+        }
+
+        .details {
+            .name {
+                font-size: 1.063rem;
+                color: $text-color;
+                padding-bottom: 0.313rem;
+            }
+        }
+    }
+}
+
+.video-section {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+
+    .details-wrapper {
+        width: 33%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        gap: 0.813rem;
+
+        .title {
+            font-size: 1.45rem;
+            line-height: 1.5rem;
+            text-align: center;
+        }
+
+        .des {
+            font-size: 0.95rem;
+            color: #616060ee;
+            text-align: center;
+
+        }
+    }
+
+    .video-wrapper {
+        width: 33%;
+        padding: 1rem;
+        border: $border-light-small;
+        border-radius: $border-radius-small;
+
+        iframe {
+            width: 100%;
+            max-height: 31.25rem;
+            height: 12rem;
+        }
+
+        .title {
+            font-size: 1.125rem;
+            line-height: 1.5rem;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+        }
+
+        .des {
+            padding: 0 1rem;
+        }
+    }
+}
+
+// help support tab end
+
+.right-pro-banner {
+    .title {
+        font-size: 1.45rem;
+        line-height: 1.313rem;
+        color: $text-color;
+        font-weight: 600;
+        margin-top: 0.5rem;
+    }
+
+    .des {
+        font-size: 0.9rem;
+        padding-top: 0.5rem;
+    }
+
+    .image-wrapper {
+        text-align: center;
+        margin: 0;
+        margin-bottom: 1.5rem;
+
+        img {
+            height: 20rem;
+        }
+    }
+
+    ul {
+        margin: 2rem 0;
+        display: flex;
+        flex-wrap: wrap;
+
+        li {
+            width: 48%;
+            color: #000;
+            line-height: 1rem;
+            margin-bottom: 0.625rem;
+
+            i {
+                color: $theme-color;
+                font-size: 1.063rem;
+                padding-right: 0.5rem;
+            }
+        }
+    }
+
+    .button-wrapper {
+        display: flex;
+    }
+}
+
+//  free vs pro tabel start
+.free-vs-pro {
+    .buttons-wrapper {
+        margin-top: 0.5rem;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        border: 0.063rem solid $theme-background-color;
+
+        thead {
+            tr {
+                background: $theme-background-color;
+                color: $theme-color;
+                font-size: 1.25rem;
+            }
+        }
+
+        tr {
+            td {
+                padding: 0.625rem;
+                font-size: 1rem;
+
+                .close-icon {
+                    color: #f06b4f;
+                }
+
+                .check-icon {
+                    color: $theme-color;
+                }
+            }
+        }
+
+        tbody {
+            tr:nth-child(even) {
+                background: #f8f9fa;
+                ;
+            }
+        }
+
+        td:first-child {
+            width: 70%;
+        }
+
+        td:nth-child(2),
+        td:nth-child(3) {
+            width: 15%;
+        }
+    }
+}
+
+// free vs pro tabel end
+
+// setting banner template (remove and move template folder)
+.multivendorx-banner {
+    position: relative;
+    background-size: contain !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+
+    .banner-img,
+    .banner-slider {
+        width: 100%;
+        background: #5756560d;
+        display: flex;
+        justify-content: center;
+        height: 12rem;
+        position: relative;
+
+        img {
+            max-height: 25rem;
+        }
+
+        .no-banner {
+            position: absolute;
+            content: "1500 x 900";
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 8rem;
+            color: #0000007d;
+        }
+
+        &::after {
+            position: absolute;
+            content: "700 X 400";
+            top: 0;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            font-size: 5rem;
+            color: #afaeae;
+        }
+    }
+
+    .banner-right {
+        .social-profile {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.625rem;
+            display: flex;
+            gap: 0.813rem;
+
+            i {
+                font-size: 0.9rem;
+
+                &::before {
+                    padding: 0.313rem;
+                    background: #fff;
+                    border-radius: 50%;
+                }
+            }
+        }
+    }
+
+    .buttons-wrapper {
+        display: flex;
+        gap: 0.313rem;
+    }
+
+    .container {
+        display: flex;
+        justify-content: space-between;
+
+        i {
+            padding-right: 0.5rem;
+        }
+
+        .row {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .contact-details {
+            width: 60%;
+        }
+
+        .right-section {
+            display: flex;
+            flex-direction: row;
+            gap: 0.5rem;
+            align-items: start;
+        }
+    }
+
+    .store-details {
+
+        .details {
+            width: 100%;
+        }
+
+        img {
+            width: 5rem;
+            height: auto;
+        }
+
+        .buttons-wrapper {
+            align-items: start;
+        }
+
+        .profile {
+            .multivendorx-profile-img {
+                background: #fff;
+                box-shadow: 0 0.125rem 0.5rem 0 rgb(66 62 78 / 12%);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                width: 5rem;
+                height: 5rem;
+                padding: 0.313rem;
+            }
+        }
+    }
+
+    .follow-wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        gap: 0.5rem;
+
+        .follower-count {
+            font-size: 0.9rem;
+        }
+    }
+
+    .store-name {
+        font-size: 1.125rem;
+        font-weight: 600;
+    }
+
+    &.luxe-display {
+        .contact-details {
+            flex-direction: column;
+            padding: 0;
+        }
+
+        .store-name,
+        .store-address {
+            text-align: left;
+        }
+
+        .store-details {
+            position: absolute;
+            display: flex;
+            gap: 1rem;
+            bottom: 5%;
+            left: 4%;
+            width: 92%;
+        }
+
+    }
+
+    &.signature-view {
+
+        .store-address,
+        .store-name {
+            text-align: center;
+        }
+
+        .banner-img {
+            display: flex;
+            justify-content: center;
+        }
+
+        .store-details {
+            text-align: center;
+            margin-top: -4%;
+            flex-direction: column;
+
+            .profile {
+                display: flex;
+                justify-content: center;
+                margin-bottom: 0.625rem;
+            }
+
+            .row {
+                justify-content: center;
+            }
+
+            .container {
+                flex-direction: column;
+                align-items: center;
+
+                .right-section {
+                    padding-top: 0.5rem;
+                }
+
+                .contact-details {
+                    width: 75%;
+                    flex-direction: column;
+                    align-items: center;
+                }
+            }
+
+            .buttons-wrapper {
+                justify-content: center;
+            }
+        }
+    }
+
+    &.dynamic-showcase {
+        .contact-details {
+            flex-direction: column;
+        }
+
+        .store-name,
+        .store-address {
+            text-align: left;
+        }
+
+        .store-details {
+            display: flex;
+            gap: 1.5rem;
+            padding: 0 4rem;
+            margin-top: 1rem;
+
+            .contact-detail {
+                padding: 0;
+            }
+
+            .details {
+                width: 100%;
+            }
+        }
+    }
+
+    .placeholder {
+        left: 0;
+        top: 0;
+        color: $background-white;
+        display: flex;
+        justify-content: center;
+        background: $theme-color;
+        align-items: center;
+        font-size: 3rem;
+        width: 5rem;
+        height: 5rem;
+    }
+
+    // end setting banner template
+}
+
+.content {
+    max-height: 70vh;
+
+    &.multi {
+
+        .section {
+            padding: 1rem 0;
+
+            .order-overview {
+                width: 50%;
+            }
+
+            .commission-overview {
+                width: 50%;
+            }
+
+            &.right {
+                display: flex;
+                gap: 1.5rem;
+            }
+        }
+    }
+}
+
+
+
+
+
+
+@media screen and (width <=600px) {
+    .pro-banner-wrapper {
+        flex-direction: column;
+        align-items: center;
+
+        .heading,
+        .description {
+            text-align: center;
+        }
+
+        .button-wrapper {
+            justify-content: center;
+        }
+    }
+}

@@ -1,0 +1,2122 @@
+<?php
+/**
+ * Install class file.
+ *
+ * @package MultiVendorX
+ */
+
+namespace MultiVendorX;
+
+use MultiVendorX\Notifications\Notifications;
+use MultiVendorX\Utill;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * MultiVendorX Install class
+ *
+ * @class       Install class
+ * @version     5.0.0
+ * @author      MultiVendorX
+ */
+class Install {
+
+    /**
+     * Class constructor
+     */
+    public function __construct() {
+        add_action( 'init', array( $this, 'run_migration' ) );
+    }
+
+    /**
+     * Runs the database migration process.
+     */
+    public function do_migration() {
+        // write migration code from 5.0.1.
+        $previous_version = get_option( 'multivendorx_version' );
+        if ( version_compare( $previous_version, '5.0.2', '<' ) ) {
+            $this->create_database_triggers();
+            $previous_settings = get_option( Utill::MULTIVENDORX_SETTINGS['delivery'], array() );
+            $existing_stages   = $previous_settings['shipping_stage'] ?? array();
+
+            $new_stages = array(
+                'delivered'        => array(
+                    'title'    => 'Delivered',
+                    'desc'     => 'Delivery progress stages.',
+                    'icon'     => 'delivery',
+                    'required' => true,
+                    'isCustom' => true,
+                ),
+                'shipped'          => array(
+                    'title'    => 'Shipped',
+                    'desc'     => 'The order has been shipped and handed over to the delivery partner.',
+                    'icon'     => 'rejecte',
+                    'required' => true,
+                    'isCustom' => true,
+                ),
+                'packed'           => array(
+                    'title'    => 'Packed',
+                    'desc'     => 'The order has been packed and is ready to be shipped.',
+                    'icon'     => 'rejecte',
+                    'required' => true,
+                    'isCustom' => true,
+                ),
+                'out-for-delivery' => array(
+                    'title'    => 'Out for delivery',
+                    'desc'     => 'The order is on the way and will be delivered soon.',
+                    'icon'     => 'rejecte',
+                    'required' => true,
+                    'isCustom' => true,
+                ),
+            );
+
+            $previous_settings['shipping_stage'] = array_merge( $new_stages, $existing_stages );
+            update_option( Utill::MULTIVENDORX_SETTINGS['delivery'], $previous_settings );
+        }
+
+        if ( version_compare( $previous_version, '5.0.6', '<' ) ) {
+            global $wpdb;
+
+            $table = $wpdb->prefix . Utill::TABLES['store'];
+
+            $wpdb->query(
+                "
+                ALTER TABLE {$table}
+                MODIFY name VARCHAR(100) NOT NULL,
+                MODIFY slug VARCHAR(100) NOT NULL
+            "
+            );
+        }
+
+        if ( version_compare( $previous_version, '5.0.7', '<' ) ) {
+            global $wpdb;
+            $collate          = $wpdb->get_charset_collate();
+
+            $sql_logs= "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['activity_logs'] . "` (
+                `ID` bigint(20) NOT NULL AUTO_INCREMENT,
+                `store_id` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                `message` text NOT NULL,
+                `tag` varchar(50) DEFAULT NULL,
+                `date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`ID`)
+            ) $collate;";
+
+            if ( ! function_exists( 'dbDelta' ) ) {
+                require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+            }
+
+            dbDelta( $sql_logs );
+
+            $previous_settings = get_option( Utill::MULTIVENDORX_SETTINGS['store-identity'], array() );
+            $new_settings = array(
+                'verification_methods' => array(
+                    'address-proof' => array(
+                        'title'       => 'Address proof of business location',
+                        'description' => 'Confirms the store’s physical or operational business address.',
+                    ),
+
+                    'trade-license' => array(
+                        'title'       => 'Trade license or permit',
+                        'description' => 'Validates that the store is authorized to operate and conduct business legally.',
+                    ),
+
+                    'business-registration' => array(
+                        'title'       => 'Business registration certificate',
+                        'description' => 'Confirms the store is legally registered as a business entity.',
+                    ),
+                )
+            );
+            update_option( Utill::MULTIVENDORX_SETTINGS['store-identity'], array_merge( $previous_settings, $new_settings ) );
+
+            $previous_tax_settings = get_option( Utill::MULTIVENDORX_SETTINGS['tax-compliance'], array() );
+            $tax_compliance_settings = array(
+                'bank_documents' => array(
+                    'bank_statement',
+                ),
+
+                'tax_documents' => array(
+                    'vat_certificate',
+                ),
+
+                'business_documents' => array(
+                    'business_registration',
+                ),
+            );
+            update_option( Utill::MULTIVENDORX_SETTINGS['tax-compliance'], array_merge( $previous_tax_settings, $tax_compliance_settings ) );
+        }
+            
+    }
+
+    public function run_migration() {
+        if ( ! get_option( 'multivendorx_version', false ) ) {
+            $this->create_database_table();
+            $this->create_database_triggers();
+            $this->plugin_create_pages();
+            $this->set_default_modules();
+            $this->set_default_settings();
+        } else {
+            $this->do_migration();
+        }
+
+        if ( get_option( 'dc_product_vendor_plugin_db_version' ) ) {
+            $this->migrate_mvx_to_multivendorx();
+        }
+
+        update_option( 'multivendorx_version', MULTIVENDORX_PLUGIN_VERSION );
+        do_action( 'multivendorx_after_installed' );
+    }
+
+    /**
+     * Create database table for subscriber.
+     *
+     * @return void
+     */
+    private static function create_database_table() {
+        global $wpdb;
+
+        // Get the charset collate for the tables.
+        $collate          = $wpdb->get_charset_collate();
+        $max_index_length = 191;
+
+        $sql_commission = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['commission'] . "` (
+            `ID` bigint(20) NOT NULL AUTO_INCREMENT,
+            `order_id` bigint(20) NOT NULL,
+            `store_id` bigint(20) NOT NULL,
+            `facilitator_id` bigint(20) NOT NULL DEFAULT 0,
+            `customer_id` bigint(20) NOT NULL,
+            `total_order_value` float(10, 2) NOT NULL DEFAULT 0,
+            `net_items_cost` float(10, 2) NOT NULL DEFAULT 0,
+            `marketplace_commission` float(20, 2) NOT NULL DEFAULT 0,
+            `store_earning` float(20, 2) NOT NULL DEFAULT 0,
+            `facilitator_fee` float(20, 2) NOT NULL DEFAULT 0,
+            `gateway_fee` float(20, 2) NOT NULL DEFAULT 0,
+            `platform_fee` float(20, 2) NOT NULL DEFAULT 0,
+            `store_shipping` float(20, 2) NOT NULL DEFAULT 0,
+            `store_tax` float(20, 2) NOT NULL DEFAULT 0,
+            `store_shipping_tax` float(20, 2) NOT NULL DEFAULT 0,
+            `marketplace_tax` float(20, 2) NOT NULL DEFAULT 0,
+            `marketplace_shipping_tax` float(20, 2) NOT NULL DEFAULT 0,
+            `store_discount` float(20, 2) NOT NULL DEFAULT 0,
+            `admin_discount` float(20, 2) NOT NULL DEFAULT 0,
+            `store_payable` float(20, 2) NOT NULL DEFAULT 0,
+            `marketplace_payable` float(20, 2) NOT NULL DEFAULT 0,
+            `store_refunded` float(20, 2) NOT NULL DEFAULT 0,
+            `marketplace_refunded` float(20, 2) NOT NULL DEFAULT 0,
+            `currency` varchar(10) NOT NULL,
+            `status` enum('unpaid', 'paid','refunded','partially_refunded','cancelled') DEFAULT 'unpaid',
+            `commission_note`  longtext NULL,
+            `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            `rules_applied` LONGTEXT,
+            PRIMARY KEY (`ID`)
+        ) $collate;";
+
+        $sql_store = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['store'] . "` (
+            `ID` bigint(20) NOT NULL AUTO_INCREMENT,
+            `status` varchar(20) DEFAULT NULL,
+            `name` varchar(100) NOT NULL,
+            `slug` varchar(100) NOT NULL,
+            `description` TEXT DEFAULT NULL,
+            `who_created` bigint(20) DEFAULT NULL,
+            `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`ID`)
+        ) $collate;";
+
+        $sql_store_users = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['store_users'] . "` (
+            `ID` bigint(20) NOT NULL AUTO_INCREMENT,
+            `store_id` bigint(20) NOT NULL,
+            `user_id` bigint(20) NOT NULL,
+            `role_id` varchar(50) DEFAULT NULL,
+            `primary_owner` bigint(20) DEFAULT NULL,
+            PRIMARY KEY (`ID`)
+        ) $collate;";
+
+        $sql_store_meta = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['store_meta'] . "` (
+            `ID` bigint(20) NOT NULL AUTO_INCREMENT,
+            `store_id` bigint(20) NOT NULL,
+            `meta_key` VARCHAR(255) DEFAULT NULL,
+            `meta_value` LONGTEXT,
+            PRIMARY KEY (`ID`)
+        ) $collate;";
+
+        $sql_transaction = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['transaction'] . "` (
+            `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            `store_id` bigint(20) unsigned NOT NULL,
+            `order_id` bigint(20) unsigned DEFAULT NULL,
+            `commission_id` bigint(20) unsigned DEFAULT NULL,
+            `entry_type` enum('Dr','Cr') NOT NULL,
+            `transaction_type` enum('Commission','Withdrawal','Refund','Reversed', 'COD received') NOT NULL,
+            `amount` float(20,2) NOT NULL,
+            `balance` float(20,2) NOT NULL,
+            `locking_balance` float(20,2) NOT NULL,
+            `currency` varchar(10) NOT NULL,
+            `payment_method` varchar(50) DEFAULT NULL,
+            `narration` text NOT NULL,
+            `status` enum('Upcoming','Processed','Completed', 'Failed') DEFAULT 'Upcoming',
+            `available_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            KEY `idx_store` (`store_id`),
+            KEY `idx_order` (`order_id`),
+            KEY `idx_commission` (`commission_id`),
+            KEY `idx_type` (`transaction_type`)
+        ) $collate;";
+
+        $sql_qna = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['customer_queries'] . "` (
+            `id` INT NOT NULL AUTO_INCREMENT,
+            `product_id` INT NOT NULL,
+            `store_id` INT NOT NULL,
+            `question_text` TEXT NOT NULL,
+            `question_by` INT NOT NULL,
+            `question_date` DATETIME NOT NULL,
+            `answer_text` TEXT,
+            `answer_by` INT,
+            `answer_date` DATETIME,
+            `total_votes` INT DEFAULT 0,
+            `voters` TEXT,
+            `question_visibility` VARCHAR(50) DEFAULT 'public',
+            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`)
+        ) $collate;";
+
+        $sql_report_abuse = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['report_abuse'] . "` (
+            `ID` bigint(20) NOT NULL AUTO_INCREMENT,
+            `store_id` bigint(20) NOT NULL,
+            `product_id` bigint(20) NOT NULL,
+            `name` VARCHAR(255) DEFAULT NULL,
+            `email` VARCHAR(255) DEFAULT NULL,
+            `message` LONGTEXT DEFAULT NULL,
+            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`ID`)
+        ) $collate;";
+
+        $sql_shared_listing = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['shared_listing'] . "` (
+            `ID` bigint(20) NOT NULL AUTO_INCREMENT,
+            `listing_products` VARCHAR(255) NOT NULL DEFAULT '',
+            `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`ID`)
+        ) $collate;";
+
+        $sql_review = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['review'] . "` (
+            `review_id` BIGINT(20) NOT NULL AUTO_INCREMENT,
+            `store_id` BIGINT(20) NOT NULL,
+            `customer_id` BIGINT(20) NOT NULL,
+            `order_id` BIGINT(20) NULL DEFAULT NULL,
+            `overall_rating` DECIMAL(3,2) NOT NULL DEFAULT 0.00,
+            `review_title` VARCHAR(255) NULL DEFAULT NULL,
+            `review_content` TEXT NULL DEFAULT NULL,
+            `review_images` LONGTEXT NULL DEFAULT NULL,
+            `status` ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+            `user_ip` TEXT NULL DEFAULT NULL,
+            `reply` TEXT NULL DEFAULT NULL,
+            `reply_date` DATETIME NULL DEFAULT NULL,
+            `reported` TINYINT(1) NOT NULL DEFAULT 0,
+            `date_created` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `date_modified` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`review_id`)
+        ) $collate;";
+
+        $sql_ratings = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['rating'] . "` (
+            `id` BIGINT(20) NOT NULL AUTO_INCREMENT,
+            `review_id` BIGINT(20) NOT NULL,
+            `parameter` VARCHAR(100) NOT NULL,
+            `rating_value` TINYINT(1) NOT NULL DEFAULT 0,
+            PRIMARY KEY (`id`)
+        ) $collate;";
+
+        $sql_notifications = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['notifications'] . "` (
+            `id` BIGINT(20) NOT NULL AUTO_INCREMENT,
+            `store_id` BIGINT(20) DEFAULT NULL,
+            `category` ENUM('activity', 'notification') NOT NULL DEFAULT 'activity',
+            `type` TEXT NOT NULL,
+            `title` VARCHAR(255) NOT NULL,
+            `message` TEXT NOT NULL,
+            `is_read` BOOLEAN DEFAULT 0,
+            `is_dismissed` BOOLEAN DEFAULT 0,
+            `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `expires_at` DATETIME NULL,
+            PRIMARY KEY (`id`)
+        ) $collate;";
+
+        $sql_system_events = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['system_events'] . "` (
+            `id` BIGINT(20) NOT NULL AUTO_INCREMENT,
+            `event_name` VARCHAR(255) NOT NULL,
+            `description` TEXT NULL,
+            `category` ENUM('activity', 'notification') NOT NULL DEFAULT 'activity',
+            `tag` TEXT NOT NULL,
+            `admin_enabled` BOOLEAN DEFAULT FALSE,
+            `customer_enabled` BOOLEAN DEFAULT FALSE,
+            `store_enabled` BOOLEAN DEFAULT FALSE,
+            `sms_enabled` BOOLEAN DEFAULT FALSE,
+            `email_enabled` BOOLEAN DEFAULT FALSE,
+            `system_enabled` BOOLEAN DEFAULT FALSE,
+            `custom_emails` JSON NULL,
+            `email_subject` VARCHAR(255) NULL,
+            `email_body` TEXT NULL,
+            `sms_content` VARCHAR(500) NULL,
+            `system_message` TEXT NULL,
+            `system_action` VARCHAR(255) NULL,
+            `available_placeholders` VARCHAR(255) NULL,
+            `status` ENUM('active', 'inactive') DEFAULT 'active',
+            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`)
+        ) $collate;";
+
+        $sql_stats = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['visitors_stats'] . "` (
+            `ID` bigint(20) NOT NULL AUTO_INCREMENT,
+            `store_id` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            `user_id` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            `user_cookie` varchar(255) NOT NULL,
+            `session_id` varchar(191) NOT NULL,
+            `ip` varchar(60) NOT NULL,
+            `lat` varchar(60) NOT NULL,
+            `lon` varchar(60) NOT NULL,
+            `city` text NOT NULL,
+            `zip` varchar(20) NOT NULL,
+            `regionCode` text NOT NULL,
+            `region` text NOT NULL,
+            `countryCode` text NOT NULL,
+            `country` text NOT NULL,
+            `isp` text NOT NULL,
+            `timezone` varchar(255) NOT NULL,
+            `created` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`ID`),
+            CONSTRAINT visitor UNIQUE (store_id, session_id),
+            KEY store_id (store_id),
+            KEY user_id (user_id),
+            KEY user_cookie (user_cookie($max_index_length)),
+            KEY session_id (session_id($max_index_length)),
+            KEY ip (ip)
+        ) $collate;";
+
+        $sql_logs= "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}" . Utill::TABLES['activity_logs'] . "` (
+            `ID` bigint(20) NOT NULL AUTO_INCREMENT,
+            `store_id` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            `message` text NOT NULL,
+            `tag` varchar(50) DEFAULT NULL,
+            `date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`ID`)
+        ) $collate;";
+
+
+        // Include upgrade functions if not loaded.
+        if ( ! function_exists( 'dbDelta' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        }
+
+        dbDelta( $sql_commission );
+        dbDelta( $sql_store );
+        dbDelta( $sql_store_users );
+        dbDelta( $sql_store_meta );
+        dbDelta( $sql_transaction );
+        dbDelta( $sql_qna );
+        dbDelta( $sql_report_abuse );
+        dbDelta( $sql_shared_listing );
+        dbDelta( $sql_review );
+        dbDelta( $sql_ratings );
+        dbDelta( $sql_notifications );
+        dbDelta( $sql_system_events );
+        dbDelta( $sql_stats );
+        dbDelta( $sql_logs );
+    }
+
+    /**
+     * Create database triggers.
+     */
+    public function create_database_triggers() {
+        global $wpdb;
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+        $wpdb->query( 'DROP TRIGGER IF EXISTS update_store_balance' );
+        $table = $wpdb->prefix . Utill::TABLES['transaction'];
+        // Create the trigger.
+        $sql = "
+        CREATE TRIGGER update_store_balance
+        BEFORE INSERT ON {$table}
+        FOR EACH ROW
+        BEGIN
+            DECLARE last_balance DECIMAL(20,2);
+            DECLARE last_locking_balance DECIMAL(20,2);
+
+            SELECT balance, locking_balance
+            INTO last_balance, last_locking_balance
+            FROM {$table}
+            WHERE store_id = NEW.store_id
+            ORDER BY id DESC
+            LIMIT 1;
+
+            IF last_balance IS NULL THEN
+                SET last_balance = 0.00;
+            END IF;
+            IF last_locking_balance IS NULL THEN
+                SET last_locking_balance = 0.00;
+            END IF;
+
+            IF NEW.transaction_type = 'Commission' AND NEW.entry_type = 'Cr' THEN
+                IF NEW.status = 'Completed' THEN
+                    SET NEW.balance = last_balance + NEW.amount;
+                    SET NEW.locking_balance = last_locking_balance;
+                ELSEIF NEW.status = 'Upcoming' THEN
+                    SET NEW.balance = last_balance;
+                    SET NEW.locking_balance = last_locking_balance + NEW.amount;
+                ELSE
+                    SET NEW.balance = last_balance;
+                    SET NEW.locking_balance = last_locking_balance;
+                END IF;
+            ELSEIF NEW.transaction_type = 'Withdrawal' AND NEW.entry_type = 'Dr' THEN
+                IF NEW.status = 'Completed' THEN
+                    SET NEW.balance = last_balance - NEW.amount;
+                    SET NEW.locking_balance = last_locking_balance;
+                ELSEIF NEW.status = 'Failed' THEN
+                    SET NEW.balance = last_balance;
+                    SET NEW.locking_balance = last_locking_balance;
+                END IF;
+            ELSEIF NEW.transaction_type = 'Refund' AND NEW.entry_type = 'Dr' THEN
+                IF NEW.status = 'Completed' THEN
+                    SET NEW.balance = last_balance - NEW.amount;
+                    SET NEW.locking_balance = last_locking_balance;
+                ELSEIF NEW.status = 'Failed' THEN
+                    SET NEW.balance = last_balance;
+                    SET NEW.locking_balance = last_locking_balance;
+                END IF;
+            ELSEIF NEW.transaction_type = 'COD received' AND NEW.entry_type = 'Dr' THEN
+                IF NEW.status = 'Completed' THEN
+                    SET NEW.balance = last_balance - NEW.amount;
+                    SET NEW.locking_balance = last_locking_balance;
+                ELSEIF NEW.status = 'Failed' THEN
+                    SET NEW.balance = last_balance;
+                    SET NEW.locking_balance = last_locking_balance;
+                END IF;
+            ELSEIF NEW.transaction_type = 'Reversed' AND NEW.entry_type = 'Dr' THEN
+                IF NEW.status = 'Completed' THEN
+                    SET NEW.balance = last_balance - NEW.amount;
+                    SET NEW.locking_balance = last_locking_balance;
+                ELSE
+                    SET NEW.balance = last_balance;
+                    SET NEW.locking_balance = last_locking_balance;
+                END IF;
+            ELSE
+                SET NEW.balance = last_balance;
+                SET NEW.locking_balance = last_locking_balance;
+            END IF;
+        END;
+        ";
+
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared
+        $wpdb->query( $sql );
+    }
+
+    /**
+     * Set default modules
+     *
+     * @return void
+     */
+    public static function set_default_modules() {
+        // Enable module by default.
+        $active_modules  = get_option( Utill::ACTIVE_MODULES_DB_KEY, array() );
+        $default_modules = array(
+            'announcement',
+			'knowledgebase',
+			'simple',
+			'customer-queries',
+			'privacy',
+        );
+        update_option( Utill::ACTIVE_MODULES_DB_KEY, array_unique( array_merge( $active_modules, $default_modules ) ) );
+    }
+
+    /**
+     * Set default settings for the plugin or module.
+     *
+     * @return void
+     */
+    private function set_default_settings() {
+        $settings = array(
+            'badge_img'                => 'verification1',
+            'all_verification_methods' => array(
+                'google-connect' => array(
+                    'enable' => true,
+                ),
+            ),
+            'verification_methods' => array(
+                'address-proof' => array(
+                    'title'       => 'Address proof of business location',
+                    'description' => 'Confirms the store’s physical or operational business address.',
+                ),
+
+                'trade-license' => array(
+                    'title'       => 'Trade license or permit',
+                    'description' => 'Validates that the store is authorized to operate and conduct business legally.',
+                ),
+
+                'business-registration' => array(
+                    'title'       => 'Business registration certificate',
+                    'description' => 'Confirms the store is legally registered as a business entity.',
+                ),
+            ),
+        );
+
+        $legal_settings = array(
+            'seller_agreement'        =>
+                'This Seller Agreement (“Agreement”) is entered into between Marketplace (“Platform”) and the Seller (“You” or “Seller”) upon registration on the Platform. By submitting this agreement and uploading the required documents, you agree to comply with all rules, policies, and guidelines of the Platform.
+
+                1. Eligibility and Registration
+                - Seller must be at least 18 years old and legally eligible to operate a business.
+                - All business registration documents must be submitted and verified.
+
+                2. Product Listing Rules
+                - Only products allowed under prohibited/restricted categories may be listed.
+                - Product descriptions, images, and certifications must be accurate and truthful.
+                - Counterfeit or illegal products are prohibited.
+
+                3. Order Fulfillment
+                - Orders must be fulfilled on time.
+                - Inventory must be accurately maintained.
+
+                4. Payments & Commissions
+                - Commissions deducted as per agreed rates.
+                - Payouts only for verified sellers.
+
+                5. Legal Compliance
+                - Compliance with tax, consumer protection, and intellectual property laws.
+                - Anti-counterfeit and copyright regulations must be followed.
+
+                6. Refunds & Returns
+                - Must follow platform policies.
+
+                7. Termination
+                - Platform may suspend or terminate accounts for violations.
+
+                8. Amendments
+                - Platform may update this agreement. Sellers will be notified.
+
+                By signing and submitting, the Seller accepts all terms above.
+                ',
+            'terms_conditions'        =>
+                '1. General
+                - Use of the Platform constitutes agreement to these Terms & Conditions.
+                - Sellers must act with honesty, transparency, and integrity.
+
+                2. Account Responsibility
+                - Keep account credentials secure.
+                - No falsification of information.
+
+                3. Product Guidelines
+                - Products must be legal, safe, and comply with guidelines.
+                - Prohibited or counterfeit products are forbidden.
+
+                4. Fees & Payments
+                - Commission and transaction fees apply.
+                - Payouts require verification of bank and tax details.
+
+                5. Dispute Resolution
+                - Platform mediates disputes; sellers must comply with resolutions.
+
+                6. Modification of Terms
+                - Terms may be updated; sellers will be notified via dashboard.
+                ',
+            'privacy_policy'          =>
+                '1. Data Collection
+                - Platform collects personal and business info for order processing and compliance.
+
+                2. Data Usage
+                - Information used for communication, compliance, and service improvement.
+                - Data not shared with third parties without consent or legal obligation.
+
+                3. Data Security
+                - Secure storage with encryption and access controls.
+                - Sellers must keep passwords confidential.
+
+                4. Consent
+                - By accepting, sellers consent to collection, storage, and processing.
+                - Withdrawal of consent may limit Platform access.
+                ',
+            'refund_return_policy'    =>
+                '1. Eligibility
+                - Products must meet condition and timeline requirements.
+                - Requests must be submitted within 14 days.
+
+                2. Return Process
+                - Buyers submit requests through the Platform.
+                - Sellers must acknowledge requests within 48 hours.
+
+                3. Refund Process
+                - Refunds issued within 7 business days after verification.
+                - Refunds processed via original payment method.
+
+                4. Seller Obligations
+                - Provide accurate descriptions and images.
+                - Follow Platform refund rules.
+                ',
+            'anti_counterfeit_policy' =>
+                '1. Product Authenticity
+                - All products must be authentic; certificates must be provided for branded items.
+
+                2. Copyright Compliance
+                - All images, descriptions, and logos must be original or licensed.
+
+                3. Violations
+                - Non-compliance may result in account suspension or termination.
+
+                4. Certification Upload
+                - Sellers must upload supporting documents for regulated products.
+                ',
+            'legal_document_handling' => 'allow_download_only',
+        );
+
+        $pending_store_status = array(
+            'pending_msg' => 'Your store is awaiting approval and will be activated soon.',
+        );
+
+        update_option( Utill::MULTIVENDORX_SETTINGS['pending'], $pending_store_status );
+
+        $reject_store_status = array(
+            'rejected_msg' => 'Your application was not approved. Please review feedback and reapply.',
+        );
+
+        update_option( Utill::MULTIVENDORX_SETTINGS['rejected'], $reject_store_status );
+
+        $under_review_store_status = array(
+            'under_review_msg' => 'Your store is under review. Sales and payouts are temporarily paused.',
+        );
+
+        update_option( Utill::MULTIVENDORX_SETTINGS['under-review'], $under_review_store_status );
+
+        $suspended_store_status = array(
+            'suspended_msg' => 'Your store is suspended due to a policy issue. Contact admin to resolve it.',
+        );
+
+        update_option( Utill::MULTIVENDORX_SETTINGS['suspended'], $suspended_store_status );
+
+        $store_permissions = array(
+			'products'                   =>
+				array(
+					'read_products',
+					'add_products',
+					'edit_published_products',
+					'edit_approved_products',
+					'publish_products',
+					'upload_files',
+                    'edit_products',
+				),
+			'orders'                     =>
+				array(
+					'view_shop_orders',
+					'edit_shop_orders',
+					'delete_shop_orders',
+					'add_shop_orders_note',
+				),
+			'coupons'                    =>
+				array(
+					'add_shop_coupons',
+					'edit_shop_coupons',
+					'read_shop_coupons',
+					'publish_coupons',
+				),
+			'analytics'                  =>
+				array(
+					'read_shop_report',
+				),
+			'inventory'                  =>
+				array(
+					'read_inventory',
+					'edit_inventory',
+				),
+			'commission'                 =>
+				array(
+					'read_shop_earning',
+					'edit_withdrawl_request',
+					'view_commission_history',
+					'view_transactions',
+				),
+			'store_support'              =>
+				array(
+					'view_support_tickets',
+					'reply_support_tickets',
+					'view_customer_questions',
+					'reply_customer_questions',
+					'view_store_followers',
+					'view_store_reviews',
+					'reply_store_reviews',
+				),
+			'resources'                  =>
+				array(
+					'view_documentation',
+					'access_tools',
+				),
+			'settings'                   =>
+				array(
+					'manage_store_settings',
+				),
+            'edit_store_info_activation' =>
+                array(
+                    'store_description',
+                    'store_images',
+                    'store_address',
+                    'store_contact',
+                    'store_name',
+                ),
+        );
+
+        update_option( Utill::MULTIVENDORX_SETTINGS['store-permissions'], $store_permissions );
+
+        $user_permissions = array(
+            'store_owner' =>
+                array(
+                    'read_products',
+					'add_products',
+					'edit_published_products',
+					'edit_approved_products',
+					'publish_products',
+                    'edit_products',
+					'upload_files',
+                    'view_shop_orders',
+					'edit_shop_orders',
+					'delete_shop_orders',
+					'add_shop_orders_note',
+                    'add_shop_coupons',
+					'edit_shop_coupons',
+					'read_shop_coupons',
+					'publish_coupons',
+					'read_shop_report',
+                    'read_inventory',
+					'edit_inventory',
+                    'read_shop_earning',
+					'edit_withdrawl_request',
+					'view_commission_history',
+					'view_transactions',
+                    'view_support_tickets',
+					'reply_support_tickets',
+					'view_customer_questions',
+					'reply_customer_questions',
+					'view_store_followers',
+					'view_store_reviews',
+					'reply_store_reviews',
+                    'view_documentation',
+					'access_tools',
+					'manage_store_settings',
+				),
+		);
+
+        update_option( Utill::MULTIVENDORX_SETTINGS['user-permissions'], $user_permissions );
+
+        $disbursment_settings = array(
+            'disbursement_order_status' => array( 'completed' ),
+            'payment_schedules'         => 'hourly',
+            'disbursement_hourly'       => 1,
+            'withdraw_type'             => 'manual',
+		);
+
+        update_option( Utill::MULTIVENDORX_SETTINGS['payouts'], $disbursment_settings );
+
+        $shipping_provider_settings = array(
+            'shipping_providers_options' => array(
+                array(
+                    'key'   => 'australia_post',
+                    'label' => 'Australia post',
+                    'value' => 'australia_post',
+                    'edit'  => true,
+                ),
+                array(
+                    'key'   => 'canada_post',
+                    'label' => 'Canada post',
+                    'value' => 'canada_post',
+                    'edit'  => true,
+                ),
+
+                array(
+                    'key'   => 'city_link',
+                    'label' => 'City link',
+                    'value' => 'city_link',
+                    'edit'  => true,
+                ),
+
+                array(
+                    'key'   => 'dhl',
+                    'label' => 'DHL',
+                    'value' => 'dhl',
+                    'edit'  => true,
+                ),
+
+                array(
+                    'key'   => 'fastway_south_africa',
+                    'label' => 'Fastway South Africa',
+                    'value' => 'fastway_south_africa',
+                    'edit'  => true,
+                ),
+
+                array(
+                    'key'   => 'fedex',
+                    'label' => 'FedEx',
+                    'value' => 'fedex',
+                    'edit'  => true,
+                ),
+
+                array(
+                    'key'   => 'ontrac',
+                    'label' => 'OnTrac',
+                    'value' => 'ontrac',
+                    'edit'  => true,
+                ),
+
+                array(
+                    'key'   => 'polish_shipping',
+                    'label' => 'Polish shipping providers',
+                    'value' => 'polish_shipping',
+                    'edit'  => true,
+                ),
+            ),
+        );
+
+        update_option( Utill::MULTIVENDORX_SETTINGS['shipping'], $shipping_provider_settings );
+
+        $payment_settings = array(
+            'payment_methods' => array(
+                'bank-transfer' => array(
+                    'enable'       => true,
+                    'bank_details' => array( 'bank_name', 'account_number' ),
+                ),
+            ),
+        );
+
+        update_option( Utill::MULTIVENDORX_SETTINGS['withdrawal-methods'], $payment_settings );
+
+        $dashboard_page = get_posts(
+            array(
+				'post_type'   => 'page',
+				'post_status' => 'publish',
+				'fields'      => 'ids',
+				'numberposts' => 1,
+				's'           => '[marketplace_dashboard]',
+            )
+        );
+
+        $store_dashboard_page_id = $dashboard_page ? reset( $dashboard_page ) : false;
+
+        $page = get_posts(
+            array(
+				'post_type'   => 'page',
+				'post_status' => 'publish',
+				'fields'      => 'ids',
+				'numberposts' => 1,
+				's'           => '[marketplace_registration]',
+            )
+        );
+
+        $store_registration_page_id = $page ? reset( $page ) : false;
+
+        $marketplace_settings = array(
+            'store_registration_page' => $store_registration_page_id,
+            'store_dashboard_page'    => $store_dashboard_page_id,
+            'store_url'               => 'store',
+            'display_customer_order'  => 'mainorder',
+        );
+        update_option( Utill::MULTIVENDORX_SETTINGS['overview'], $marketplace_settings );
+
+        $general_settings = array(
+            'approve_store'                  => 'manually',
+            'disable_setup_wizard'           => 'enable_guided_setup',
+            'onboarding_steps_configuration' => array(
+                'store_profile_setup',
+                'payment_information',
+                'shipping_configuration',
+                'first_product_upload',
+                'store_policies',
+            ),
+            'setup_wizard_introduction'      =>
+                    "Welcome!
+
+                    Let's get your store ready.
+                    Please follow the Setup Wizard to quickly complete the basic store settings and start selling.
+
+                    It only takes a few minutes, and you can update everything later anything.
+
+                    Start setup!",
+            'store_selling_mode'             => 'default',
+            'shared_listing_display'         => 'min_price',
+            'more_offers_display_position'   => 'after',
+        );
+        update_option( Utill::MULTIVENDORX_SETTINGS['onboarding'], $general_settings );
+
+        $appearance_settings = array(
+            'store_color_settings'  => array(
+                'selectedPalette' => 'golden_ray',
+                'colors'          => array(
+                    'colorPrimary'   => '#0E117A',
+                    'colorSecondary' => '#399169',
+                    'colorAccent'    => '#12E2A4',
+                    'colorSupport'   => '#DCF516',
+                ),
+            ),
+            'store_banner_template' => array(
+                'selectedPalette' => 'template3',
+                'colors'          => array(),
+            ),
+        );
+        update_option( Utill::MULTIVENDORX_SETTINGS['appearance'], $appearance_settings );
+
+        $product_settings = array(
+            'type_options'    => array( 'virtual', 'downloadable' ),
+            'products_fields' => array( 'general', 'inventory', 'linked_product', 'attribute', 'advanced', 'policies', 'product_tag', 'GTIN' ),
+        );
+        update_option( Utill::MULTIVENDORX_SETTINGS['product-preferences'], $product_settings );
+
+        $map_settings = array(
+            'radius_search_unit'     => 'both',
+            'radius_search_distance' => array(
+                array(
+                    'radius_search_min_distance' => 1,
+                    'radius_search_max_distance' => 500,
+                    'radius_search_unit'         => 'kilometers',
+                ),
+            ),
+        );
+        update_option( Utill::MULTIVENDORX_SETTINGS['geolocation'], $map_settings );
+
+        $inventory_settings = array(
+            'low_stock_notifications'    => array(
+                array(
+                    'low_stock_alert'           => array( 'low_stock_alert' ),
+                    'low_stock_alert_threshold' => 5,
+                ),
+            ),
+
+            'out_of_stock_notifications' => array(
+                array(
+                    'out_of_stock_alert'           => array( 'out_of_stock_alert' ),
+                    'out_of_stock_alert_threshold' => 1,
+                ),
+            ),
+        );
+        update_option( Utill::MULTIVENDORX_SETTINGS['store-inventory'], $inventory_settings );
+
+        $commission_settings = array(
+            'give_tax' => 'no_tax',
+        );
+        update_option( Utill::MULTIVENDORX_SETTINGS['commissions'], $commission_settings );
+
+        $coupon_settings = array(
+            'commission_include_coupon' => 'seperate',
+            'admin_coupon_excluded'     => array( 'admin_coupon_excluded' ),
+        );
+        update_option( Utill::MULTIVENDORX_SETTINGS['coupons-discounts'], $coupon_settings );
+
+        $refund_settings = array(
+            'customer_refund_status' => array( 'completed' ),
+            'refund_days'            => 7,
+            'refund_reasons'         => array(
+                'damaged-or-defective-product' => array(
+                    'title'      => 'Damaged or defective product',
+					'isCustom'   => true,
+                    'disableBtn' => true,
+                ),
+                'wrong-item'                   => array(
+                    'title'      => 'Wrong item delivered',
+					'isCustom'   => true,
+                    'disableBtn' => true,
+                ),
+                'product-not-as-described'     => array(
+                    'title'      => 'Product not as described',
+					'isCustom'   => true,
+                    'disableBtn' => true,
+                ),
+                'late-delivery'                => array(
+                    'title'      => 'Late delivery',
+					'isCustom'   => true,
+                    'disableBtn' => true,
+                ),
+                'changed-mind'                 => array(
+                    'title'      => 'Changed mind',
+					'isCustom'   => true,
+                    'disableBtn' => true,
+                ),
+            ),
+        );
+        update_option( Utill::MULTIVENDORX_SETTINGS['refunds'], $refund_settings );
+
+        $privacy_settings = array(
+            'store_branding_details'      => array( 'show_store_name', 'show_store_description', 'show_store_logo_next_to_products', 'show_store_ratings' ),
+            'store_contact_details'       => array( 'show_store_owner_info', 'show_store_phone', 'show_store_email' ),
+            'store_order_display'         => array( 'group_items_by_store_in_cart' ),
+            'store_policy_override'       => array( 'store', 'shipping', 'refund', 'cancellation_return' ),
+            'customer_information_access' => array( 'name', 'email_address', 'phone_number', 'shipping_address', 'order_notes' ),
+        );
+        update_option( Utill::MULTIVENDORX_SETTINGS['privacy'], $privacy_settings );
+
+        $registration_form = array(
+			array(
+				'id'    => 1,
+				'type'  => 'heading',
+				'label' => '',
+			),
+			array(
+				'id'          => 2,
+				'type'        => 'text',
+				'label'       => 'Enter your store name',
+				'required'    => false,
+				'name'        => 'name',
+				'placeholder' => 'text',
+				'readonly'    => true,
+			),
+			array(
+				'id'    => 3,
+				'type'  => 'button',
+				'label' => '',
+				'text'  => 'Submit',
+				'name'  => 'submit',
+			),
+        );
+
+        $registration_from_settings = array(
+            'store_registration_from' => array(
+                'formfieldlist'  => $registration_form,
+                'butttonsetting' => array(),
+            ),
+        );
+
+        update_option( Utill::MULTIVENDORX_SETTINGS['registration'], $registration_from_settings );
+
+        $delivery_settings = array(
+            'shipping_stage' => array(
+                'delivered'        => array(
+                    'title'    => 'Delivered',
+                    'desc'     => 'Delivery progress stages.',
+					'icon'     => 'delivery',
+					'required' => true,
+					'isCustom' => true,
+                ),
+                'shipped'          => array(
+                    'title'    => 'Shipped',
+                    'desc'     => 'The order has been shipped and handed over to the delivery partner.',
+					'icon'     => 'rejecte',
+					'required' => true,
+					'isCustom' => true,
+                ),
+                'packed'           => array(
+                    'title'    => 'Packed',
+                    'desc'     => 'The order has been packed and is ready to be shipped.',
+					'icon'     => 'rejecte',
+					'required' => true,
+					'isCustom' => true,
+                ),
+                'out-for-delivery' => array(
+                    'title'    => 'Out for delivery',
+                    'desc'     => 'The order is on the way and will be delivered soon.',
+					'icon'     => 'rejecte',
+					'required' => true,
+					'isCustom' => true,
+                ),
+            ),
+        );
+
+        $review_settings                                     = array(
+            'ratings_parameters' => array(
+                'quality-of-product'    => array(
+                    'title'      => 'Quality of product',
+					'required'   => true,
+					'isCustom'   => true,
+					'disableBtn' => true,
+                ),
+                'communication-support' => array(
+                    'title'      => 'Communication Support',
+					'required'   => true,
+					'isCustom'   => true,
+                    'disableBtn' => true,
+                ),
+                'delivery-experience'   => array(
+                    'title'      => 'Delivery experience',
+					'required'   => true,
+					'isCustom'   => true,
+                    'disableBtn' => true,
+                ),
+            ),
+        );
+        $product_compliance_settings['abuse_report_reasons'] = array(
+            'product-not-received'      => array(
+                'title'      => 'Product not received',
+                'isCustom'   => true,
+                'disableBtn' => true,
+            ),
+            'product-not-described'     => array(
+                'title'      => 'Product not as described',
+                'isCustom'   => true,
+                'disableBtn' => true,
+            ),
+            'product-damaged-defective' => array(
+                'title'      => 'Product damaged / defective',
+                'isCustom'   => true,
+                'disableBtn' => true,
+            ),
+            'wrong-item-received'       => array(
+                'title'      => 'Wrong item received',
+                'isCustom'   => true,
+                'disableBtn' => true,
+            ),
+            'order-arrived-late'        => array(
+                'title'      => 'Order arrived late',
+                'isCustom'   => true,
+                'disableBtn' => true,
+            ),
+        );
+        $product_compliance_settings['who_can_report']       = 'logged_in';
+        $product_compliance_settings['prohibited_product_categories'] = array(
+            'weapons-&-ammunition' => array(
+                'label'      => 'Weapons & ammunition',
+                'isCustom'   => true,
+                'disableBtn' => true,
+            ),
+            'drugs-&-substances'   => array(
+                'label'      => 'Illegal drugs & substances',
+                'isCustom'   => true,
+                'disableBtn' => true,
+            ),
+            'counterfeit-products' => array(
+                'label'      => 'Counterfeit products',
+                'isCustom'   => true,
+                'disableBtn' => true,
+            ),
+        );
+
+        $compliance_settings = array(
+            'store_compliance_management' => array(
+                'seller-verification' => array(
+                    'enable'                               => true,
+                    'enable_advertisement_in_subscription' => true,
+                    'display_advertised_product_on_top'    => true,
+                    'out_of_stock_visibility'              => true,
+                    'required_tasks'                       => array(
+                        'block_dashboard_access',
+                        'hide_store_from_view',
+                        'disable_product',
+                    ),
+                ),
+            ),
+        );
+
+        $tax_compliance_settings = array(
+            'bank_documents' => array(
+                'bank_statement',
+            ),
+
+            'tax_documents' => array(
+                'vat_certificate',
+            ),
+
+            'business_documents' => array(
+                'business_registration',
+            ),
+        );
+
+        // 6. Save back to DB
+        update_option( Utill::MULTIVENDORX_SETTINGS['store-identity'], $settings );
+        update_option( Utill::MULTIVENDORX_SETTINGS['delivery'], $delivery_settings );
+        update_option( Utill::MULTIVENDORX_SETTINGS['legal-compliance'], $legal_settings );
+        update_option( Utill::MULTIVENDORX_SETTINGS['product-compliance'], $product_compliance_settings );
+        update_option( Utill::MULTIVENDORX_SETTINGS['store-reviews'], $review_settings );
+        update_option( Utill::MULTIVENDORX_SETTINGS['compliance'], $compliance_settings );
+        update_option( Utill::MULTIVENDORX_SETTINGS['tax-compliance'], $tax_compliance_settings );
+
+        $notifications = new Notifications();
+        $notifications->insert_system_events();
+    }
+
+    /**
+     * Create necessary pages for the plugin.
+     */
+    public function plugin_create_pages() {
+
+        $pages_to_create = array(
+            array(
+                'slug'      => 'dashboard',
+                'title'     => 'Store Dashboard',
+                'shortcode' => '[marketplace_dashboard]',
+            ),
+            array(
+                'slug'      => 'store-registration',
+                'title'     => 'Store Registration',
+                'shortcode' => '[marketplace_registration]',
+            ),
+        );
+
+        $this->plugin_create_pages_dynamic( $pages_to_create );
+
+        $template_slug = 'store';
+
+        // Check if page already exists.
+        $existing = get_page_by_path( $template_slug );
+
+        if ( ! $existing ) {
+            $block_template_path = MultiVendorX()->plugin_path . 'templates/store/store.html';
+            $blocks_html         = file_exists( $block_template_path ) ? file_get_contents( $block_template_path ) : '';// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local file read, not a remote request.
+
+            // Insert hidden page with default blocks.
+            wp_insert_post(
+                array(
+					'post_title'   => 'Store Template',
+					'post_name'    => $template_slug,
+					'post_type'    => 'page',
+					'post_status'  => 'private',
+					'post_content' => $blocks_html, // default blocks pre-filled.
+                )
+            );
+        }
+    }
+	/**
+	 * Run migration from legacy MVX (dc_) structure to MultiVendorX.
+	 *
+	 * This method orchestrates the migration process by:
+	 * - Migrating old modules configuration.
+	 * - Migrating legacy plugin settings.
+	 * - Migrating product category related settings.
+	 * - Migrating custom database tables.
+	 *
+	 * After successful migration, it removes the old database version
+	 * option to prevent re-running the migration.
+	 *
+	 * @return void
+	 */
+    public function migrate_mvx_to_multivendorx() {
+        $this->migrate_old_modules();
+        $this->migrate_old_settings();
+    }
+    /**
+     * Create pages dynamically based on provided data.
+     *
+     * @param array $pages Array of page data to create.
+     */
+    public function plugin_create_pages_dynamic( $pages = array() ) {
+        if ( empty( $pages ) || ! is_array( $pages ) ) {
+            return;
+        }
+
+        foreach ( $pages as $page ) {
+            // Validate required keys.
+            if ( empty( $page['slug'] ) || empty( $page['title'] ) || empty( $page['shortcode'] ) ) {
+                continue;
+            }
+
+            $slug      = $page['slug'];
+            $title     = $page['title'];
+            $shortcode = $page['shortcode'];
+
+            // Check if page with slug exists.
+            $page_found = get_posts(
+                array(
+                    'name'        => $slug,
+                    'post_status' => 'publish',
+                    'post_type'   => 'page',
+                    'fields'      => 'ids',
+                    'numberposts' => 1,
+                )
+            );
+
+            if ( $page_found ) {
+                continue;
+            }
+
+            // Create the page.
+            $page_data = array(
+                'post_status'    => 'publish',
+                'post_type'      => 'page',
+                'post_author'    => 1,
+                'post_name'      => $slug,
+                'post_title'     => $title,
+                'post_content'   => $shortcode,
+                'comment_status' => 'closed',
+            );
+
+            wp_insert_post( $page_data );
+        }
+    }
+	/**
+	 * Get mapping of old module IDs to new module IDs.
+	 *
+	 * @return array
+	 */
+    public function old_new_map_module_id() {
+        $map_modules = array(
+            'spmv'                  => 'shared-listing',
+            'report-abuse'          => 'marketplace-compliance',
+            'identity-verification' => 'marketplace-compliance',
+            'store-location'        => 'geo-location',
+        );
+        return $map_modules;
+    }
+
+    /**
+     * Migrate old modules
+     *
+     * @return void
+     */
+    public function migrate_old_modules() {
+        $previous_active_modules = get_option( 'mvx_all_active_module_list', array() );
+        $shipping_settings       = get_option( Utill::MULTIVENDORX_SETTINGS['shipping'], array() );
+        $payment_settings        = get_option( Utill::MULTIVENDORX_SETTINGS['withdrawal-methods'], array() );
+
+        $shipping_settings['shipping_modules'] = $shipping_settings['shipping_modules'] ?? array();
+        $payment_settings['payment_methods']   = $payment_settings['payment_methods'] ?? array();
+
+        if ( in_array( 'zone-shipping', $previous_active_modules, true ) ) {
+            $shipping_settings['shipping_modules']['zone-wise-shipping']['enable'] = true;
+        }
+
+        if ( in_array( 'country-shipping', $previous_active_modules, true ) ) {
+            $shipping_settings['shipping_modules']['country-wise-shipping']['enable'] = true;
+        }
+
+        if ( in_array( 'distance-shipping', $previous_active_modules, true ) ) {
+            $shipping_settings['shipping_modules']['distance-wise-shipping']['enable'] = true;
+        }
+
+        if ( in_array( 'stripe-connect', $previous_active_modules, true ) ) {
+            $payment_settings['payment_methods']['stripe-connect']['enable'] = true;
+        }
+
+        if ( in_array( 'bank-payment', $previous_active_modules, true ) ) {
+            $payment_settings['payment_methods']['bank-transfer']['enable'] = true;
+        }
+
+        if ( in_array( 'paypal-payout', $previous_active_modules, true ) ) {
+            $payment_settings['payment_methods']['paypal-payout']['enable'] = true;
+        }
+
+        if ( in_array( 'stripe-marketplace', $previous_active_modules, true ) ) {
+            $payment_settings['payment_methods']['stripe-marketplace']['enable'] = true;
+        }
+
+        if ( in_array( 'paypal-marketplace', $previous_active_modules, true ) ) {
+            $payment_settings['payment_methods']['paypal-marketplace']['enable'] = true;
+        }
+
+        update_option( Utill::MULTIVENDORX_SETTINGS['withdrawal-methods'], $payment_settings );
+        update_option( Utill::MULTIVENDORX_SETTINGS['shipping'], $shipping_settings );
+
+        $old_shipping_modules = array(
+			'zone-shipping',
+			'country-shipping',
+			'distance-shipping',
+		);
+
+		if ( ! empty( array_intersect( $old_shipping_modules, $previous_active_modules ) ) ) {
+			$previous_active_modules[] = 'store-shipping';
+		}
+
+		$modules_to_remove = array(
+			'zone-shipping',
+			'country-shipping',
+			'distance-shipping',
+			'stripe-connect',
+			'bank-payment',
+			'paypal-masspay',
+			'paypal-payout',
+			'toolset-types',
+			'mvx-blocks',
+		);
+
+		$previous_active_modules = array_diff( $previous_active_modules, $modules_to_remove );
+
+		$module_map = $this->old_new_map_module_id();
+
+		foreach ( $previous_active_modules as &$module ) {
+			if ( isset( $module_map[ $module ] ) ) {
+				$module = $module_map[ $module ];
+			}
+		}
+		unset( $module );
+
+		$active_modules = get_option( Utill::ACTIVE_MODULES_DB_KEY, array() );
+		update_option( Utill::ACTIVE_MODULES_DB_KEY, array_unique( array_merge( $active_modules, $previous_active_modules ) ) );
+    }
+
+    /**
+     * Migrate old Multivendorx settings
+     *
+     * @return void
+     */
+    public function migrate_old_settings() {
+        $previous_capability_settings = get_option( 'mvx_products_capability_tab_settings', array() );
+
+        $store_permissions             = get_option( Utill::MULTIVENDORX_SETTINGS['store-permissions'], array() );
+        $store_permissions['products'] = array();
+        $store_permissions['coupons']  = array();
+        $store_permissions['orders']   = array();
+
+        $user_permissions = array();
+
+        if ( ! empty( $previous_capability_settings['is_submit_product'] ) ) {
+            $store_permissions['products'] = array_merge(
+                $store_permissions['products'],
+                array( 'read_products', 'add_products' )
+            );
+        }
+
+        if ( ! empty( $previous_capability_settings['is_published_product'] ) ) {
+            $store_permissions['products'][] = 'publish_products';
+        }
+
+        if ( ! empty( $previous_capability_settings['is_edit_delete_published_product'] ) ) {
+            $store_permissions['products'][] = 'edit_published_products';
+        }
+
+        if ( ! empty( $previous_capability_settings['publish_and_submit_products'] ) ) {
+            $store_permissions['products'][] = 'edit_approved_products';
+        }
+
+        if ( ! empty( $previous_capability_settings['is_upload_files'] ) ) {
+            $store_permissions['products'][] = 'upload_files';
+        }
+
+        if ( ! empty( $previous_capability_settings['is_submit_coupon'] ) ) {
+            $store_permissions['coupons'] = array_merge(
+                $store_permissions['coupons'],
+                array( 'add_shop_coupons', 'read_shop_coupons' )
+            );
+        }
+
+        if ( ! empty( $previous_capability_settings['is_published_coupon'] ) ) {
+            $store_permissions['coupons'][] = 'publish_coupons';
+        }
+
+        if ( ! empty( $previous_capability_settings['is_edit_delete_published_coupon'] ) ) {
+            $store_permissions['coupons'][] = 'edit_shop_coupons';
+        }
+
+        $previous_product_settings = get_option( 'mvx_products_tab_settings', array() );
+        if ( ! empty( $previous_product_settings['type_options'] ) ) {
+            $product_settings['type_options'] = $previous_product_settings['type_options'];
+        }
+
+        if ( ! empty( $previous_product_settings['products_fields'] ) ) {
+            $product_settings['products_fields'] = $previous_product_settings['products_fields'];
+        }
+
+        $previous_general_settings = get_option( 'mvx_settings_general_tab_settings', array() );
+        $general_settings          = array(
+            'approve_store' => ! empty( $previous_general_settings['approve_vendor'] ) ? $previous_general_settings['approve_vendor'] : 'manually',
+        );
+
+        if ( ! empty( $general_settings['display_product_seller'] ) ) {
+            $privacy_settings['store_branding_details'] = array( 'show_store_name', 'show_store_description', 'show_store_logo_next_to_products' );
+            $privacy_settings['store_order_display']    = array( 'group_items_by_store_in_cart' );
+        }
+
+        $previous_store_settings = get_option( 'mvx_store_tab_settings', array() );
+
+        if ( ! empty( $previous_store_settings['mvx_hide_vendor_details'] ) ) {
+            $privacy_settings['store_branding_details'] = array();
+            $privacy_settings['store_contact_details']  = array();
+        }
+
+        if ( ! empty( $previous_general_settings['registration_page'] ) ) {
+            $marketplace_settings['store_registration_page'] = $previous_general_settings['registration_page']['value'];
+            $post = get_post( $previous_general_settings['registration_page']['value'] );
+
+            if ( $post && is_object( $post ) ) {
+                $old_shortcode = '[vendor_registration]';
+                $new_shortcode = '[marketplace_registration]';
+
+                $updated_content = str_replace( $old_shortcode, $new_shortcode, $post->post_content ?? '' );
+
+                wp_update_post(
+                    array(
+                        'ID'           => $previous_general_settings['registration_page']['value'],
+                        'post_content' => $updated_content,
+                    )
+                );
+
+                delete_option( 'mvx_product_vendor_registration_page_id' );
+            }
+        }
+
+        if ( ! empty( $previous_general_settings['vendor_dashboard_page'] ) ) {
+            $marketplace_settings['store_dashboard_page'] = $previous_general_settings['vendor_dashboard_page']['value'];
+            $post = get_post( $previous_general_settings['vendor_dashboard_page']['value'] );
+
+            $old_shortcode = '[mvx_vendor]';
+            $new_shortcode = '[marketplace_dashboard]';
+
+            $updated_content = str_replace( $old_shortcode, $new_shortcode, $post->post_content );
+
+            wp_update_post(
+                array(
+                    'ID'           => $previous_general_settings['vendor_dashboard_page']['value'],
+                    'post_content' => $updated_content,
+                )
+            );
+
+            delete_option( 'mvx_product_vendor_vendor_page_id' );
+        }
+
+        $permalinks = get_option( 'dc_vendors_permalinks', array() );
+        if ( ! empty( $permalinks['vendor_shop_base'] ) ) {
+            $marketplace_settings['store_url'] = $permalinks['vendor_shop_base'];
+        }
+
+        if ( ! empty( $previous_general_settings['mvx_tinymce_api_section'] ) ) {
+            $marketplace_settings['tinymce_api_section'] = $previous_general_settings['mvx_tinymce_api_section'];
+        }
+
+        $previous_dashboard_settings = get_option( 'mvx_seller_dashbaord_tab_settings', array() );
+
+        if ( ! empty( $previous_dashboard_settings['setup_wizard_introduction'] ) ) {
+            $general_settings['setup_wizard_introduction'] = $previous_dashboard_settings['setup_wizard_introduction'];
+        }
+
+        if ( ! empty( $previous_dashboard_settings['mvx_vendor_dashboard_custom_css'] ) ) {
+            $tool_settings['custom_css_product_page'] = $previous_dashboard_settings['mvx_vendor_dashboard_custom_css'];
+        }
+
+        if ( ! empty( $previous_dashboard_settings['mvx_new_dashboard_site_logo'] ) ) {
+            $appearance_settings['store_dashboard_site_logo'] = $previous_dashboard_settings['mvx_new_dashboard_site_logo'];
+        }
+
+        if ( ! empty( $previous_dashboard_settings['vendor_color_scheme_picker'] ) ) {
+            if ( 'outer_space_blue' === $previous_dashboard_settings['vendor_color_scheme_picker'] ) {
+                $appearance_settings['store_color_settings']['selectedPalette'] = 'obsidian_night';
+                $appearance_settings['store_color_settings']['colors']          = array(
+					'colorPrimary'   => '#00EED0',
+					'colorSecondary' => '#0197AF',
+					'colorAccent'    => '#4B227A',
+					'colorSupport'   => '#02153D',
+				);
+            }
+
+            if ( 'green_lagoon' === $previous_dashboard_settings['vendor_color_scheme_picker'] ) {
+                $appearance_settings['store_color_settings']['selectedPalette'] = 'golden_ray';
+                $appearance_settings['store_color_settings']['colors']          = array(
+					'colorPrimary'   => '#0E117A',
+					'colorSecondary' => '#399169',
+					'colorAccent'    => '#12E2A4',
+					'colorSupport'   => '#DCF516',
+				);
+            }
+
+            if ( 'old_west' === $previous_dashboard_settings['vendor_color_scheme_picker'] ) {
+                $appearance_settings['store_color_settings']['selectedPalette'] = 'emerald_edge';
+                $appearance_settings['store_color_settings']['colors']          = array(
+					'colorPrimary'   => '#E6B924',
+					'colorSecondary' => '#D888C1',
+					'colorAccent'    => '#6B7923',
+					'colorSupport'   => '#6E97D0',
+				);
+            }
+
+            if ( 'wild_watermelon' === $previous_dashboard_settings['vendor_color_scheme_picker'] ) {
+                $appearance_settings['store_color_settings']['selectedPalette'] = 'orchid_bloom';
+                $appearance_settings['store_color_settings']['colors']          = array(
+					'colorPrimary'   => '#FF5959',
+					'colorSecondary' => '#FADD3A',
+					'colorAccent'    => '#49BEB6',
+					'colorSupport'   => '#075F63',
+				);
+            }
+        }
+
+        if ( ! empty( $previous_store_settings['mvx_vendor_shop_template'] ) ) {
+            $appearance_settings['store_banner_template'] = $previous_store_settings['mvx_vendor_shop_template'];
+        }
+
+        if ( ! empty( $previous_store_settings['mvx_store_sidebar_position'] ) ) {
+            $position = $previous_store_settings['mvx_store_sidebar_position'];
+            if ( $position === 'At Left' ) {
+                $appearance_settings['store_sidebar'] = 'left';
+            } elseif ( $position === 'At Right' ) {
+                $appearance_settings['store_sidebar'] = 'right';
+            }
+        }
+
+        if ( ! empty( $previous_store_settings['choose_map_api'] ) ) {
+            if ( 'google_map_set' == $previous_store_settings['choose_map_api']['value'] ) {
+                $map_settings['choose_map_api'] = 'google_map';
+            }
+            if ( 'mapbox_api_set' == $previous_store_settings['choose_map_api']['value'] ) {
+                $map_settings['choose_map_api'] = 'mapbox';
+            }
+            $map_settings['google_map_api_key'] = $previous_store_settings['google_map_api_key'];
+            $map_settings['mapbox_api_key']     = $previous_store_settings['mapbox_api_key'];
+        }
+
+		if ( ! empty( $previous_store_settings['show_related_products'] ) ) {
+			if ( 'vendors_related' === $previous_store_settings['show_related_products']['value'] ) {
+				$product_settings['recommendation_source'] = 'same_store';
+			}
+			if ( 'all_related' === $previous_store_settings['show_related_products']['value'] ) {
+				$product_settings['recommendation_source'] = 'all_stores';
+			}
+			if ( 'disable' === $previous_store_settings['show_related_products']['value'] ) {
+				$product_settings['recommendation_source'] = 'none';
+			}
+		}
+
+        if ( ! empty( $general_settings['category_pyramid_guide'] ) ) {
+            $product_settings['category_selection_method'] = 'yes';
+        }
+
+        $previous_spmv_settings = get_option( 'mvx_spmv_pages_tab_settings', array() );
+        if ( ! empty( $previous_spmv_settings['is_singleproductmultiseller'] ) ) {
+            $general_settings['store_selling_mode'] = 'shared_listing';
+        }
+
+		if ( ! empty( $previous_spmv_settings['singleproductmultiseller_show_order'] ) ) {
+			if ( 'min-price' === $previous_spmv_settings['singleproductmultiseller_show_order'] ) {
+				$general_settings['shared_listing_display'] = 'min_price';
+			}
+			if ( 'max-price' === $previous_spmv_settings['singleproductmultiseller_show_order'] ) {
+				$general_settings['shared_listing_display'] = 'max_price';
+			}
+			if ( 'top-rated-vendor' === $previous_spmv_settings['singleproductmultiseller_show_order'] ) {
+				$general_settings['shared_listing_display'] = 'top_rated_store';
+			}
+		}
+
+        $previous_disbursement_settings = get_option( 'mvx_disbursement_tab_settings', array() );
+        if ( ! empty( $previous_disbursement_settings['commission_calculation_on_tax'] ) ) {
+            $commission_settings['give_tax'] = 'commision_based_tax';
+        }
+
+        if ( ! empty( $previous_disbursement_settings['give_tax'] ) ) {
+            $commission_settings['give_tax'] = 'full_tax';
+        } else {
+            $commission_settings['give_tax'] = 'no_tax';
+        }
+
+        $previous_order_settings = get_option( 'mvx_order_tab_settings', array() );
+        if ( ! empty( $previous_order_settings['disallow_vendor_order_status'] ) ) {
+            $store_permissions['orders'] = array( 'edit_shop_orders' );
+        }
+        if ( ! empty( $previous_order_settings['display_suborder_in_mail'] ) ) {
+            $marketplace_settings['display_customer_order'] = 'suborder';
+        }
+
+        $previous_commission_settings = get_option( 'mvx_commissions_tab_settings', array() );
+		if ( ! empty( $previous_commission_settings['revenue_sharing_mode'] ) && 'revenue_sharing_mode_vendor' === $previous_commission_settings['revenue_sharing_mode'] ) {
+			update_option( Utill::MULTIVENDORX_OTHER_SETTINGS['revenue_mode_store'], true );
+		}
+
+        $default_commission = ! empty( $previous_commission_settings['default_commission'] ) && is_array( $previous_commission_settings['default_commission'] )
+                                ? $previous_commission_settings['default_commission']
+                                : array();
+		if ( ! empty( $previous_commission_settings['commission_type'] ) ) {
+			if ( 'fixed' === $previous_commission_settings['commission_type']['value'] ) {
+				$commission_settings['commission_type']     = 'per_item';
+				$commission_settings['commission_per_item'] = array(
+					array(
+						'commission_fixed'      => array_column( $default_commission, 'value', 'key' )['fixed_ammount'] ?? '',
+						'commission_percentage' => '',
+					),
+				);
+			}
+
+			if ( 'percent' === $previous_commission_settings['commission_type']['value'] ) {
+				$commission_settings['commission_type']     = 'per_item';
+				$commission_settings['commission_per_item'] = array(
+					array(
+						'commission_fixed'      => '',
+						'commission_percentage' => array_column( $default_commission, 'value', 'key' )['percent_amount'] ?? '',
+					),
+				);
+			}
+
+			if ( 'fixed_with_percentage_qty' === $previous_commission_settings['commission_type']['value'] ) {
+				$commission_settings['commission_type']     = 'per_item';
+				$commission_settings['commission_per_item'] = array(
+					array(
+						'commission_fixed'      => array_column( $default_commission, 'value', 'key' )['fixed_ammount'] ?? '',
+						'commission_percentage' => array_column( $default_commission, 'value', 'key' )['percent_amount'] ?? '',
+					),
+				);
+			}
+
+			if ( 'fixed_with_percentage' === $previous_commission_settings['commission_type']['value'] ) {
+				$commission_settings['commission_type']            = 'store_order';
+				$commission_settings['commission_per_store_order'] = array(
+					array(
+						'commission_fixed'      => array_column( $default_commission, 'value', 'key' )['fixed_ammount'] ?? '',
+						'commission_percentage' => array_column( $default_commission, 'value', 'key' )['percent_amount'] ?? '',
+					),
+				);
+			}
+
+			if ( 'commission_by_product_price' === $previous_commission_settings['commission_type']['value'] ) {
+				$commission_settings['commission_type'] = 'store_order';
+				if ( ! empty( $previous_commission_settings['vendor_commission_by_products'] ) ) {
+					foreach ( $previous_commission_settings['vendor_commission_by_products'] as $product_rule ) {
+						$new_rule = array();
+
+						$new_rule['rule_type']     = 'price';
+						$new_rule['product_price'] = $product_rule['cost'] ?? '';
+
+						$rule_map = array(
+							'upto'    => 'less_than',
+							'greater' => 'more_than',
+						);
+
+						$new_rule['rule'] = $rule_map[ $product_rule['rule']['value'] ] ?? '';
+
+						$new_rule['commission_percentage'] = $product_rule['commission'] ?? '0';
+						$new_rule['commission_fixed']      = $product_rule['commission_fixed'] ?? '0';
+
+						$commission_settings['commission_per_store_order'][] = $new_rule;
+					}
+				}
+			}
+
+			if ( 'commission_by_purchase_quantity' === $previous_commission_settings['commission_type']['value'] ) {
+				$commission_settings['commission_type'] = 'store_order';
+				if ( ! empty( $previous_commission_settings['vendor_commission_by_quantity'] ) ) {
+					foreach ( $previous_commission_settings['vendor_commission_by_quantity'] as $quantity_rule ) {
+						$new_rule = array();
+
+						$new_rule['rule_type']   = 'quantity';
+						$new_rule['product_qty'] = $quantity_rule['quantity'] ?? '';
+
+						$rule_map = array(
+							'upto'    => 'less_than',
+							'greater' => 'more_than',
+						);
+
+						$new_rule['rule'] = $rule_map[ $quantity_rule['rule']['value'] ] ?? '';
+
+						$new_rule['commission_percentage'] = $quantity_rule['commission'] ?? '0';
+						$new_rule['commission_fixed']      = $quantity_rule['commission_fixed'] ?? '0';
+
+						$commission_settings['commission_per_store_order'][] = $new_rule;
+					}
+				}
+			}
+		}
+
+        if ( ! empty( $previous_commission_settings['payment_gateway_charge'] ) ) {
+            update_option( Utill::MULTIVENDORX_OTHER_SETTINGS['payment_gateway_charge'], true );
+        }
+
+        $previous_distance_settings = get_option( 'woocommerce_mvx_product_shipping_by_distance_settings', array() );
+        $previous_country_settings  = get_option( 'woocommerce_mvx_product_shipping_by_country_settings', array() );
+        $previous_vendor_settings   = get_option( 'woocommerce_mvx_vendor_shipping_1_settings', array() );
+
+		if ( ! empty( $previous_disbursement_settings['give_shipping'] ) || ( ! empty( $previous_distance_settings['enable'] ) && 'taxable' === $previous_distance_settings['tax_status'] ) || ( ! empty( $previous_country_settings['enable'] ) && 'taxable' === $previous_country_settings['tax_status'] ) || 'taxable' === $previous_vendor_settings['tax_status'] ) {
+			$commission_settings['taxable'] = array( 'taxable' );
+		}
+
+        if ( ! empty( $previous_disbursement_settings['commission_include_coupon'] ) ) {
+            $coupon_settings['commission_include_coupon'] = 'store';
+        }
+
+        if ( ! empty( $previous_disbursement_settings['admin_coupon_excluded'] ) ) {
+            $coupon_settings['admin_coupon_excluded'] = $previous_disbursement_settings['admin_coupon_excluded'];
+        }
+
+        $statuses       = array();
+        $order_statuses = $previous_disbursement_settings['order_withdrawl_status'] ?? array();
+		foreach ( $order_statuses as $status ) {
+			if ( 'completed' === $status['value'] || 'processing' === $status['value'] ) {
+				$statuses[] = $status['value'];
+			}
+		}
+
+        $disbursement_settings = array(
+            'commission_lock_period'    => ! empty( $previous_disbursement_settings['commission_threshold_time'] )
+                ? $previous_disbursement_settings['commission_threshold_time']
+                : 0,
+
+            'disbursement_order_status' => ! empty( $previous_disbursement_settings['order_withdrawl_status'] )
+                ? $statuses
+                : array( 'completed' ),
+
+            'payout_threshold_amount'   => ! empty( $previous_disbursement_settings['commission_threshold'] )
+                ? $previous_disbursement_settings['commission_threshold']
+                : 0,
+
+            'payment_schedules'         => empty( $previous_disbursement_settings['choose_payment_mode_automatic_disbursal'] )
+                ? 'manual'
+                : $previous_disbursement_settings['payment_schedule'],
+
+            'withdrawals_fees'          => array(
+                array(
+                    'free_withdrawals' => ! empty( $previous_disbursement_settings['no_of_orders'] )
+                        ? $previous_disbursement_settings['no_of_orders']
+                        : '',
+
+                    'withdrawal_fixed' => ! empty( $previous_disbursement_settings['commission_transfer'] )
+                        ? $previous_disbursement_settings['commission_transfer']
+                        : '',
+                ),
+            ),
+        );
+
+        $previous_refund_settings = get_option( 'mvx_refund_management_tab_settings', array() );
+        $refund_settings          = get_option( Utill::MULTIVENDORX_SETTINGS['refunds'], array() );
+        $old_reasons              = array_map( 'trim', explode( '||', $previous_refund_settings['refund_order_msg'] ?? '' ) );
+        if ( ! empty( $old_reasons ) ) {
+            foreach ( $old_reasons as $reason ) {
+                $key                    = sanitize_title( $reason );
+                $refund_reasons[ $key ] = array(
+                    'title'    => $reason,
+                    'isCustom' => true,
+                );
+            }
+            $existing = $refund_settings['refund_reasons'] ?? array();
+            foreach ( $refund_reasons as $key => $value ) {
+                if ( ! isset( $existing[ $key ] ) ) {
+                    $existing[ $key ] = $value;
+                }
+            }
+            $refund_settings['refund_reasons'] = $existing;
+        }
+
+        $refund_settings['customer_refund_status'] = ! empty( $previous_refund_settings['customer_refund_status'] )
+            ? $previous_refund_settings['customer_refund_status']
+            : ( $refund_settings['customer_refund_status'] ?? array( 'completed' ) );
+
+        $refund_settings['refund_days'] = ! empty( $previous_refund_settings['refund_days'] )
+            ? $previous_refund_settings['refund_days']
+            : ( $refund_settings['refund_days'] ?? 7 );
+
+        $previous_review_settings = get_option( 'mvx_review_management_tab_settings', array() );
+        $ratings_parameters       = array();
+        foreach ( $previous_review_settings['mvx_review_categories'] as $item ) {
+            if ( empty( $item['category'] ) ) {
+                continue;
+            }
+
+            $label = trim( $item['category'] );
+            $key   = sanitize_title( $label );
+
+			if ( ! array_key_exists( $key, $ratings_parameters ) ) {
+                $ratings_parameters[ $key ] = array(
+					'title'    => $label,
+					'isCustom' => true,
+                );
+            }
+        }
+
+        $review_settings = get_option( Utill::MULTIVENDORX_SETTINGS['store-reviews'], array() );
+
+        $new_review_settings = array(
+            'is_store_review_verified' => ! empty( $previous_review_settings['is_sellerreview_varified'] )
+                ? array( 'is_store_review_verified' ) : array(),
+		);
+
+        if ( ! empty( $ratings_parameters ) ) {
+            $new_review_settings['ratings_parameters'] = $ratings_parameters;
+        }
+
+        $review_settings = array_merge( $review_settings, $new_review_settings );
+
+        $previous_policy_settings = get_option( 'mvx_policy_tab_settings', array() );
+        $policy_settings          = array(
+            'store_policy'        => ! empty( $previous_policy_settings['store-policy'] ) ? $previous_policy_settings['store-policy'] : '',
+            'shipping_policy'     => ! empty( $previous_policy_settings['shipping_policy'] ) ? $previous_policy_settings['shipping_policy'] : '',
+            'refund_policy'       => ! empty( $previous_policy_settings['refund_policy'] ) ? $previous_policy_settings['refund_policy'] : '',
+            'cancellation_policy' => ! empty( $previous_policy_settings['cancellation_policy'] ) ? $previous_policy_settings['cancellation_policy'] : '',
+        );
+
+        $payment_settings = get_option( Utill::MULTIVENDORX_SETTINGS['withdrawal-methods'], array() );
+
+        $payment_settings['payment_methods'] = $payment_settings['payment_methods'] ?? array();
+        $existing_stripe                     = $payment_settings['payment_methods']['stripe-connect'] ?? array();
+
+        $previous_stripe_settings = get_option( 'mvx_payment_stripe_connect_tab_settings', array() );
+        $new_stripe               = array(
+            'payment_mode'    => ! empty( $previous_stripe_settings['testmode'] ) ? 'test' : '',
+            'test_client_id'  => $previous_stripe_settings['test_client_id'] ?? '',
+            'test_secret_key' => $previous_stripe_settings['test_secret_key'] ?? '',
+            'live_client_id'  => $previous_stripe_settings['live_client_id'] ?? '',
+            'live_secret_key' => $previous_stripe_settings['live_secret_key'] ?? '',
+        );
+
+        $payment_settings['payment_methods']['stripe-connect'] = array_merge( $existing_stripe, $new_stripe );
+
+        $previous_paypal_settings = get_option( 'mvx_payment_payout_tab_settings', array() );
+        $existing_paypal          = $payment_settings['payment_methods']['paypal-payout'] ?? array();
+
+        $new_paypal = array(
+            'payment_mode'  => ! empty( $previous_paypal_settings['is_testmode'] ) ? 'sandbox' : '',
+            'client_id'     => $previous_paypal_settings['client_id'] ?? '',
+            'client_secret' => $previous_paypal_settings['client_secret'] ?? '',
+        );
+
+        $payment_settings['payment_methods']['paypal-payout'] = array_merge( $existing_paypal, $new_paypal );
+
+		$old_fields = get_option( 'mvx_new_vendor_registration_form_data', array() );
+
+		if ( ! empty( $old_fields ) ) {
+			$new_form = array(
+				'store_registration_from' => array(
+					'formfieldlist'  => array(),
+					'butttonsetting' => array(),
+				),
+			);
+
+			$id_counter     = 1;
+			$address_fields = array();
+
+			foreach ( $old_fields as $field ) {
+				// Skip parent title.
+				if ( 'p_title' === $field['type'] ) {
+					$new_form['store_registration_from']['formfieldlist'][] = array(
+						'id'    => $id_counter++,
+						'type'  => 'title',
+						'label' => $field['label'],
+					);
+				}
+
+				// Address fields collected separately.
+				if ( 0 === strpos( $field['type'], 'vendor_' ) &&
+					in_array(
+                        $field['type'],
+                        array(
+							'vendor_address_1',
+							'vendor_address_2',
+							'vendor_city',
+							'vendor_state',
+							'vendor_country',
+							'vendor_postcode',
+                        ),
+                        true
+					) ) {
+					$address_map = array(
+						'vendor_address_1' => 'address',
+						'vendor_address_2' => 'address_2',
+						'vendor_city'      => 'city',
+						'vendor_state'     => 'state',
+						'vendor_country'   => 'country',
+						'vendor_postcode'  => 'zip',
+					);
+
+					$address_fields[] = array(
+						'id'          => $id_counter++,
+						'key'         => $address_map[ $field['type'] ],
+						'label'       => $field['label'],
+						'type'        => 'text',
+						'placeholder' => $field['label'],
+						'required'    => $field['required'] ?? '',
+						'chosen'      => '',
+						'selected'    => '',
+					);
+					continue;
+				}
+
+				// Type conversion.
+				$type_map = array(
+					'textbox'             => 'text',
+					'multi-select'        => 'multiselect',
+					'vendor_description'  => 'textarea',
+					'vendor_page_title'   => 'text',
+					'vendor_paypal_email' => 'email',
+					'vendor_phone'        => 'text',
+					'separator'           => 'divider',
+				);
+
+				$type = $type_map[ $field['type'] ] ?? $field['type'];
+
+				$new_field = array(
+					'id'          => $id_counter++,
+					'type'        => $type,
+					'label'       => $field['label'],
+					'required'    => $field['required'] ?? '',
+					'name'        => strtolower( $field['type'] . '-mknk' . substr( str_shuffle( 'abcdefghijklmnopqrstuvwxyz0123456789' ), 0, 4 ) ),
+					'placeholder' => $field['placeholder'] ?? '',
+					'chosen'      => '',
+					'selected'    => '',
+				);
+
+				// Options.
+				if ( ! empty( $field['options'] ) ) {
+					$new_field['options'] = array();
+					$opt_id               = 1;
+
+					foreach ( $field['options'] as $option ) {
+						$new_field['options'][] = array(
+							'id'       => $opt_id++,
+							'label'    => $option['label'],
+							'value'    => $option['value'],
+							'chosen'   => '',
+							'selected' => '',
+						);
+					}
+				}
+
+				// Recaptcha.
+				if ( 'recaptcha' === $type ) {
+					$new_field['name']        = 'recaptcha-mknk' . substr( str_shuffle( 'abcdefghijklmnopqrstuvwxyz0123456789' ), 0, 4 );
+					$new_field['placeholder'] = 'recaptcha';
+				}
+
+				// Attachment.
+				if ( 'attachment' === $type ) {
+					$new_field['name']        = 'attachment-mknk' . substr( str_shuffle( 'abcdefghijklmnopqrstuvwxyz0123456789' ), 0, 4 );
+					$new_field['placeholder'] = 'attachment';
+				}
+
+				$new_form['store_registration_from']['formfieldlist'][] = $new_field;
+			}
+
+			// Add address block if exists.
+			if ( ! empty( $address_fields ) ) {
+				$new_form['store_registration_from']['formfieldlist'][] = array(
+					'id'       => $id_counter++,
+					'type'     => 'address',
+					'label'    => 'Address',
+					'name'     => 'address',
+					'fields'   => $address_fields,
+					'value'    => array(),
+					'readonly' => '',
+					'chosen'   => '',
+					'selected' => '',
+				);
+			}
+
+			update_option( Utill::MULTIVENDORX_SETTINGS['registration'], $new_form );
+		}
+
+        $store_owner_caps = array();
+        if ( ! empty( $store_permissions ) && is_array( $store_permissions ) ) {
+            foreach ( $store_permissions as $caps ) {
+                if ( is_array( $caps ) ) {
+                    $store_owner_caps = array_merge( $store_owner_caps, $caps );
+                }
+            }
+        }
+
+        $store_owner_caps = array_values( array_unique( $store_owner_caps ) );
+        $user_permissions = array(
+            'store_owner' => $store_owner_caps,
+        );
+
+        if ( $role = get_role( 'store_owner' ) ) {
+            foreach ( $role->capabilities as $cap => $_ ) {
+                $role->remove_cap( $cap );
+            }
+
+            foreach ( $store_owner_caps as $cap ) {
+                $role->add_cap( $cap );
+            }
+        }
+
+        $settings_map = array(
+            'user-permissions'    => $user_permissions ?? array(),
+            'refunds'             => $refund_settings ?? array(),
+            'store-permissions'   => $store_permissions ?? array(),
+            'product-preferences' => $product_settings ?? array(),
+            'onboarding'          => $general_settings ?? array(),
+            'privacy'             => $privacy_settings ?? array(),
+            'overview'            => $marketplace_settings ?? array(),
+            'appearance'          => $appearance_settings ?? array(),
+            'geolocation'         => $map_settings ?? array(),
+            'commissions'         => $commission_settings ?? array(),
+            'coupons-discounts'   => $coupon_settings ?? array(),
+            'policies'            => $policy_settings ?? array(),
+            'store-reviews'       => $review_settings ?? array(),
+            'payouts'             => $disbursement_settings ?? array(),
+            'developer-tools'     => $tool_settings ?? array(),
+            'withdrawal-methods'  => $payment_settings ?? array(),
+        );
+
+        foreach ( $settings_map as $key => $value ) {
+            update_option( Utill::MULTIVENDORX_SETTINGS[ $key ], $value );
+        }
+    }
+}

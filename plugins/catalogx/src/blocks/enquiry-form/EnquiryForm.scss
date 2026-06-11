@@ -1,0 +1,48 @@
+// popup styele
+.catalogx-modal {
+    width: 100%;
+    margin-top: 0.5rem;
+    top: 100%;
+    .woocommerce-form {
+        position: relative;
+        cursor: pointer;
+    }
+    &.popup-enable {
+        margin: 0 0;
+        position: fixed;
+        top: 0;
+        left: 0;
+        background: rgba($color: #000000, $alpha: 0.5);
+        width: 100vw;
+        height: 100vh;
+        z-index: 123570;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow-y: scroll;
+        gap: 1rem;
+
+        .woocommerce-form {
+            overflow-y: auto;
+            background-color: #fff;
+            width: 40%;
+            max-height: 80vh;
+        }
+    }
+    .close-icon {
+        position: absolute;
+        right: 1rem;
+        color: #cd2020;
+    }
+}
+
+// single product page buttons
+.single-product-page-action-btn-catalogx {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    justify-content: flex-start;
+    padding-top: 0.213rem;
+    width: 100%;
+}

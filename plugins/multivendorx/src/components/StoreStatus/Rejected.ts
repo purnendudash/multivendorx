@@ -1,0 +1,49 @@
+import { __ } from '@wordpress/i18n';
+
+export default {
+	id: 'rejected',
+	priority: 1,
+	name: __('Rejected', 'multivendorx'),
+	desc: '',
+	icon: 'adminfont-store-inventory',
+	submitUrl: 'settings',
+	modal: [
+		{
+			key: 'paid_promotion_limit',
+			label: __('Account capabilities', 'multivendorx'),
+			type: 'itemlist',
+			className: 'checklist',
+			items: [
+				{
+					title: __('Log in to dashboard', 'multivendorx'),
+					icon: 'success',
+				},
+				{
+					title: __('View rejection reason', 'multivendorx'),
+					icon: 'success',
+				},
+				{
+					title: __('Submit new application', 'multivendorx'),
+					icon: 'success',
+				},
+				{
+					title: __(
+						'Cannot modify products or settings',
+						'multivendorx'
+					),
+					icon: 'cross',
+				},
+				{
+					title: __('Cannot sell or fulfill orders', 'multivendorx'),
+					icon: 'cross',
+				},
+			],
+		},
+		{
+			key: 'rejected_msg',
+			label: __('Message shown to rejected stores', 'multivendorx'),
+			type: 'textarea',
+			des: __('What rejected stores can do', 'multivendorx'),
+		},
+	],
+};
