@@ -1,12 +1,29 @@
-name: Dynamic Codebase Documentation
+name: Dynamic RestAPI Documentation Creation
 
 on:
-  push:
-    branches: [ main ]
-    paths: [ 'src/**' ]
+  workflow_dispatch:
+    inputs:
+      plugin:
+        description: "Select plugin"
+        required: true
+        type: choice
+        default: multivendorx
+        options:
+          - multivendorx
+          - moowoodle
+          - catalogx
+          - notifima
+
+permissions:
+  contents: write
+  pages: write       # Required to allow automated deployment to GitHub Pages
+  id-token: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Repository
@@ -15,27 +32,26 @@ jobs:
     - name: Setup Node.js Environment
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
-        cache: 'npm'
+        node-version: '24'
 
-    - name: Install Project Dependencies
-      run: npm ci
+    # Step 1: Install tools directly inside the cloud runner instance
+    - name: Install Generation Tools
+      run: npm install swagger-autogen widdershins shins
 
-    # Compile and execute the TypeScript spec extractor directly
-    - name: Extract OpenAPI Definition From NestJS Meta
-      run: npx ts-node .github/scripts/generate-openapi.ts
+    # Step 2: Use code reflection to scan the selected plugin directory in the cloud
+    - name: Run Autogen Script Scan
+      run: node .github/scripts/generate-express-openapi.js "${{ github.event.inputs.plugin }}"
 
-    - name: Convert OpenAPI to Slate Markdown
-      run: |
-        npm install -g widdershins
-        widdershins --search true --language_tabs 'javascript:JavaScript' 'curl:cURL' 'php:PHP' --summary openapi.json -o index.html.md
+    # Step 3: Convert the structural openapi.json file into Slate Markdown
+    - name: Transform Spec to Slate Markdown
+      run: npx widdershins --search true --language_tabs 'javascript:JavaScript' 'curl:cURL' 'php:PHP' --summary openapi.json -o index.html.md
 
-    - name: Compile 3-Column Document UI via Shins
-      run: |
-        npm install -g shins
-        shins --inline index.html.md -o index.html
+    # Step 4: Compile Slate Markdown into a 3-column HTML canvas site
+    - name: Compile Layout to Static HTML Canvas
+      run: npx shins --inline index.html.md -o index.html
 
-    - name: Push Build Artifacts to GitHub Pages
+    # Step 5: Publish production assets directly to your public github.io site branch
+    - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
