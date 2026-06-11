@@ -1,14 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
-// Fixes ES Module ReferenceError by using proper default import
+// 1. Fixes the ES Module error by using native imports
 import swaggerAutogenInit from 'swagger-autogen';
-
-// Initialize the autogen tool for OpenAPI 3.0.0
-const swaggerAutogen = swaggerAutogenInit({ openapi: '3.0.0' });
 
 async function generateSpec() {
   // Capture the plugin name argument passed from the GitHub Workflow step
-  // process.argv[0] = node, process.argv[1] = script, process.argv[2] = plugin-name
+  // process.argv[2] contains the command line payload argument
   const selectedPlugin = process.argv[2] || 'multivendorx';
   console.log(`[Parser Engine] Beginning schema generation context for: ${selectedPlugin}`);
 
@@ -43,8 +40,7 @@ async function generateSpec() {
     throw new Error(`Target workspace directory not found at: ${pluginDirectory}`);
   }
 
-  // Define target endpoint source routers to scan.
-  // Since swagger-autogen scans JS/TS source code blocks, we pass your main source directory
+  // Define target endpoint source routers to scan
   const endpointsFiles = [
     path.join(pluginDirectory, 'src/app.js'),
     path.join(pluginDirectory, 'src/index.js'),
@@ -59,8 +55,9 @@ async function generateSpec() {
 
   console.log(`Scanning targets: ${JSON.stringify(endpointsFiles)}`);
   
-  // Build and write openapi.json file directly to the root of the project workspace
-  await swaggerAutogen(outputPath, endpointsFiles, doc);
+  // 2. Fixes initialization syntax required by swagger-autogen in ES modules
+  await swaggerAutogenInit({ openapi: '3.0.0' })(outputPath, endpointsFiles, doc);
+  
   console.log('Successfully completed codebase schema scanning and outputted openapi.json.');
 }
 
