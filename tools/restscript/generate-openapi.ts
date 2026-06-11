@@ -10,16 +10,18 @@ async function generateSpec() {
 
   // Fallback metadata shell if no classes folder exists
   const openApiSpec: any = {
-    openapi: '3.0.0',
-    info: {
-      title: `${selectedPlugin.toUpperCase()} REST API Documentation`,
-      description: `Dynamically parsed developer reference for the ${selectedPlugin} platform module.`,
-      version: '1.0.0'
-    },
-    host: 'purnendu-multivendorx.github.io',
-    basePath: `/wp-json/${selectedPlugin}/v1`,
-    schemes: ['https'],
-    paths: {}
+	  openapi: '3.0.0',
+	  info: {
+		title: `${selectedPlugin.toUpperCase()} REST API Documentation`,
+		description: `Dynamically parsed developer reference for the ${selectedPlugin} platform module.`,
+		version: '1.0.0'
+	  },
+	  servers: [
+		{
+		  url: `https://purnendu-multivendorx.github.io/wp-json/${selectedPlugin}/v1`
+		}
+	  ],
+	  paths: {}
   };
 
   if (!fs.existsSync(restApiDirectory)) {
