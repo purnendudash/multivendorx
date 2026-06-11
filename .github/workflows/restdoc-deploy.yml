@@ -91,7 +91,7 @@ jobs:
       - name: Generate OpenAPI Specification
         run: |
           pnpm exec ts-node \
-            tools/restscript/generate-openapi.ts \
+            tools/rest-docs/generate-openapi.ts \
             "${{ github.event.inputs.plugin }}"
 
       - name: Verify OpenAPI File
