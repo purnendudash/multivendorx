@@ -1,0 +1,43 @@
+name: Dynamic Codebase Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'src/**' ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js Environment
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install Project Dependencies
+      run: npm ci
+
+    # Compile and execute the TypeScript spec extractor directly
+    - name: Extract OpenAPI Definition From NestJS Meta
+      run: npx ts-node .github/scripts/generate-openapi.ts
+
+    - name: Convert OpenAPI to Slate Markdown
+      run: |
+        npm install -g widdershins
+        widdershins --search true --language_tabs 'javascript:JavaScript' 'curl:cURL' 'php:PHP' --summary openapi.json -o index.html.md
+
+    - name: Compile 3-Column Document UI via Shins
+      run: |
+        npm install -g shins
+        shins --inline index.html.md -o index.html
+
+    - name: Push Build Artifacts to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./
+        publish_files: 'index.html'
