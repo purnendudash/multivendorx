@@ -16,44 +16,80 @@ on:
 
 permissions:
   contents: write
-  pages: write       # Required to allow automated deployment to GitHub Pages
+  pages: write       
   id-token: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build:
+  build-docs:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: Setup Node.js Environment
-      uses: actions/setup-node@v4
-      with:
-        node-version: '24'
+      # Dynamic runtime calculation directly matching your monorepo setup
+      - name: Read Runtime Versions
+        id: versions
+        shell: bash
+        run: |
+          ROOT_PACKAGE=./package.json
+          NODE_VERSION=$(node -p "
+            const pkg=require('${ROOT_PACKAGE}');
+            (pkg.engines?.node || pkg.volta?.node || '24').replace(/[^\d.]/g,'')
+          ")
+          PNPM_VERSION=$(node -p "
+            const pkg=require('${ROOT_PACKAGE}');
+            (pkg.packageManager?.match(/pnpm@(.*)/)?.[1] || '10')
+          ")
+          echo "node_version=$NODE_VERSION" >> $GITHUB_OUTPUT
+          echo "pnpm_version=$PNPM_VERSION" >> $GITHUB_OUTPUT
 
-    # Step 1: Install tools directly inside the cloud runner instance
-    - name: Install Generation Tools
-      run: npm install swagger-autogen widdershins shins
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.versions.outputs.node_version }}
 
-    # Step 2: Use code reflection to scan the selected plugin directory in the cloud
-    - name: Run Autogen Script Scan
-      run: node .github/scripts/generate-express-openapi.js "${{ github.event.inputs.plugin }}"
+      - name: Setup PNPM
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare pnpm@${{ steps.versions.outputs.pnpm_version }} --activate
+          echo "$(dirname "$(which pnpm)")" >> $GITHUB_PATH
 
-    # Step 3: Convert the structural openapi.json file into Slate Markdown
-    - name: Transform Spec to Slate Markdown
-      run: npx widdershins --search true --language_tabs 'javascript:JavaScript' 'curl:cURL' 'php:PHP' --summary openapi.json -o index.html.md
+      - name: Setup PHP Environment
+        shell: bash
+        run: |
+          sudo add-apt-repository ppa:ondrej/php -y
+          sudo apt-get update
+          sudo apt-get install -y php8.4 php8.4-cli php8.4-mbstring php8.4-xml php8.4-curl unzip curl
 
-    # Step 4: Compile Slate Markdown into a 3-column HTML canvas site
-    - name: Compile Layout to Static HTML Canvas
-      run: npx shins --inline index.html.md -o index.html
+      - name: Install Monorepo Node Dependencies
+        run: pnpm install --no-frozen-lockfile
 
-    # Step 5: Publish production assets directly to your public github.io site branch
-    - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v4
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./
-        publish_files: 'index.html'
+      # Install UI rendering and transformation packages directly into the root workspace
+      - name: Install OpenAPI & Slate Compilers
+        run: pnpm add -Dw swagger-autogen widdershins shins ts-node typescript
+
+      # Step 2: Executes your native internal TS parser script while feeding it the plugin slug
+      - name: Run Native OpenAPI Script Spec Extractor
+        run: pnpm exec ts-node tools/restscript/generate-openapi.ts "${{ github.event.inputs.plugin }}"
+
+      # Step 3: Converts your script's generated openapi.json file into intermediate layout Markdown
+      - name: Transform Spec to Slate Markdown
+        run: pnpm exec widdershins --search true --language_tabs 'javascript:JavaScript' 'curl:cURL' 'php:PHP' --summary openapi.json -o index.html.md
+
+      # Step 4: Compiles layout Markdown into a clean 3-column deployment target HTML asset
+      - name: Compile Layout to Static HTML Canvas
+        run: pnpm exec shins --inline index.html.md -o index.html
+
+      # Step 5: Publishes production assets directly to your public organizational page site
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
+          publish_files: 'index.html'
